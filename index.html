@@ -261,6 +261,9 @@
   }
   .player-meta{flex:1; min-width:0;}
   .player-name{font-family:"Shippori Mincho",serif; font-weight:800; font-size:13px; color:var(--gold-bright);}
+  .player-name-row{ display:flex; align-items:center; gap:5px; cursor:pointer; }
+  .player-name-edit{ font-size:11px; color:var(--gold); opacity:0.7; }
+  .player-name-row:active .player-name-edit{ opacity:1; }
   .player-rank{font-size:9px; color:var(--gold); opacity:0.7; font-family:"Cinzel",serif; letter-spacing:.05em;}
 
   /* TEMP: test-build save-reset control, remove before release */
@@ -408,6 +411,19 @@
   }
   .login-streak{ font-size:11px; color:#fff; opacity:0.7; margin-bottom:16px; }
   .login-btn{ width:100%; }
+
+  /* ===== username edit ===== */
+  .name-edit-card{ text-align:center; padding:22px 18px; }
+  .name-edit-input{
+    width:100%; box-sizing:border-box; margin-top:14px; padding:10px 12px;
+    background:rgba(0,0,0,0.3); border:1px solid rgba(230,200,120,0.4); border-radius:8px;
+    color:var(--gold-bright); font-family:"Shippori Mincho",serif; font-size:15px; text-align:center;
+  }
+  .name-edit-input:focus{ outline:none; border-color:var(--gold-bright); }
+  .name-edit-count{ font-size:11px; color:var(--gold); opacity:0.7; margin-top:6px; }
+  .name-edit-error{ font-size:11px; color:#ff8080; min-height:14px; margin-top:4px; }
+  .name-edit-btns{ display:flex; gap:10px; margin-top:12px; }
+  .name-edit-btns .btn{ flex:1; }
 
   /* ===== tutorial overlay (guide dialogue) ===== */
   .tut-overlay{
@@ -1997,12 +2013,15 @@
     <div class="status-bar">
       <div class="avatar">🧙</div>
       <div class="player-meta">
-        <div class="player-name">プレイヤー</div>
+        <div class="player-name-row" id="playerNameRow">
+          <div class="player-name" id="playerNameLabel">プレイヤー</div>
+          <span class="player-name-edit">✎</span>
+        </div>
         <div class="player-rank" id="playerRankLabel">RANK 1 ・ ルーキー</div>
       </div>
       <div class="resources">
         <div class="res-chip">
-          <span class="ic">⚡</span><span class="val">5</span><span class="sub">/5</span>
+          <span class="ic">⚡</span><span class="val" id="staminaVal">5</span><span class="sub">/5</span>
         </div>
         <div class="res-chip add" id="coinChip">
           <span class="ic">🪙</span><span class="val" id="coinVal">99999</span>
@@ -2481,6 +2500,20 @@
     </div>
   </div>
 
+  <!-- USERNAME EDIT -->
+  <div class="modal-overlay" id="nameEditModal">
+    <div class="modal-card name-edit-card">
+      <div class="login-title">ユーザー名を変更</div>
+      <input type="text" id="nameEditInput" class="name-edit-input" maxlength="12" placeholder="プレイヤー">
+      <div class="name-edit-count"><span id="nameEditCount">0</span>/12</div>
+      <div class="name-edit-error" id="nameEditError"></div>
+      <div class="name-edit-btns">
+        <button class="btn btn-ghost" id="nameEditCancel">キャンセル</button>
+        <button class="btn btn-primary" id="nameEditSave">保存</button>
+      </div>
+    </div>
+  </div>
+
   <!-- TUTORIAL OVERLAY (guide: カグライ) -->
   <div class="tut-overlay" id="tutOverlay">
     <button class="tut-skip" id="tutSkipBtn">スキップ ▸</button>
@@ -2713,6 +2746,39 @@ let tutorialDone = false; // fresh players see the guided intro once; skippable
 let seasonPrologueSeen = false; // fresh players see the season's opening narration once
 let lastLoginDate = null;       // YYYY-MM-DD of the last day a login bonus was claimed
 let loginStreak = 0;            // consecutive-day counter for escalating login rewards
+let playerName = 'プレイヤー';  // shown on the home screen and sent to the online relay server
+
+// ============================================================
+//  STAMINA (consumed by endless runs and story chapters; arcade/online are free)
+// ============================================================
+const STAMINA_MAX = 5;
+const STAMINA_COST = 1;
+const STAMINA_REGEN_MS = 20 * 60 * 1000; // 1 point every 20 minutes, real-time (accrues even while the app is closed)
+let stamina = STAMINA_MAX;
+let lastStaminaTime = Date.now(); // reference point regen is measured from
+
+// advances stamina based on real elapsed time; call before reading/spending stamina.
+// only consumes whole intervals from lastStaminaTime so partial progress toward the
+// next point isn't lost (rather than just resetting the clock to "now" every check).
+function regenStamina(){
+  if(stamina >= STAMINA_MAX){ lastStaminaTime = Date.now(); return; }
+  const elapsed = Date.now() - lastStaminaTime;
+  const gained = Math.floor(elapsed / STAMINA_REGEN_MS);
+  if(gained > 0){
+    stamina = Math.min(STAMINA_MAX, stamina + gained);
+    lastStaminaTime = (stamina >= STAMINA_MAX) ? Date.now() : lastStaminaTime + gained * STAMINA_REGEN_MS;
+  }
+}
+function minutesUntilNextStamina(){
+  if(stamina >= STAMINA_MAX) return 0;
+  const msLeft = STAMINA_REGEN_MS - (Date.now() - lastStaminaTime);
+  return Math.max(1, Math.ceil(msLeft / 60000));
+}
+function updateStaminaDisplay(){
+  regenStamina();
+  const el = document.getElementById('staminaVal');
+  if(el) el.textContent = stamina;
+}
 
 function getCardLevel(id){ return cardLevels[id] || 1; }
 function getCardLB(id){ return cardLB[id] || 0; }
@@ -2741,6 +2807,10 @@ function updateRankDisplay(){
   const el = document.getElementById('playerRankLabel');
   if(el) el.textContent = `RANK ${playerRank} ・ ${rankTitle(playerRank)}（EXP ${playerExp}/${expNeeded(playerRank)}）`;
 }
+function updatePlayerNameDisplay(){
+  const el = document.getElementById('playerNameLabel');
+  if(el) el.textContent = playerName;
+}
 function gainExp(amount){
   playerExp += amount;
   while(playerExp >= expNeeded(playerRank)){
@@ -2760,7 +2830,7 @@ let skipAutoSave = false; // set true right before a reset-and-reload so the bef
 function saveState(){
   if(skipAutoSave) return;
   try{
-    const payload = { playerCoins, ownedCards, selectedDeck, cardLevels, cardLB, playerRank, playerExp, endlessBest, storyMaxCleared, tutorialDone, seasonPrologueSeen, lastLoginDate, loginStreak };
+    const payload = { playerCoins, ownedCards, selectedDeck, cardLevels, cardLB, playerRank, playerExp, endlessBest, storyMaxCleared, tutorialDone, seasonPrologueSeen, lastLoginDate, loginStreak, playerName, stamina, lastStaminaTime };
     localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
   }catch(err){
     // localStorage can throw in rare cases (private browsing quota, etc).
@@ -2858,6 +2928,17 @@ function loadState(){
   seasonPrologueSeen = (typeof saved.seasonPrologueSeen === 'boolean') ? saved.seasonPrologueSeen : true;
   if(typeof saved.lastLoginDate === 'string') lastLoginDate = saved.lastLoginDate;
   if(typeof saved.loginStreak === 'number' && isFinite(saved.loginStreak) && saved.loginStreak>=0) loginStreak = Math.floor(saved.loginStreak);
+  if(typeof saved.playerName === 'string'){
+    const trimmed = saved.playerName.trim().slice(0, 12);
+    if(trimmed) playerName = trimmed;
+  }
+  if(typeof saved.stamina === 'number' && isFinite(saved.stamina) && saved.stamina>=0){
+    stamina = Math.min(STAMINA_MAX, Math.floor(saved.stamina));
+  }
+  if(typeof saved.lastStaminaTime === 'number' && isFinite(saved.lastStaminaTime)){
+    lastStaminaTime = saved.lastStaminaTime;
+  }
+  regenStamina(); // catch up on any time elapsed while the app was closed
 }
 
 function updateCoinDisplay(){
@@ -3039,9 +3120,9 @@ const Net = (function(){
     socket.on('battle_end', handlers.onBattleEnd);
     socket.on('opponent_left', handlers.onOpponentLeft);
     return {
-      createRoom(){ socket.emit('create_room', {name:'プレイヤー'}); },
-      joinRoom(code){ socket.emit('join_room', {code, name:'プレイヤー'}); },
-      quickMatch(){ socket.emit('quick_match', {name:'プレイヤー'}); },
+      createRoom(){ socket.emit('create_room', {name:playerName}); },
+      joinRoom(code){ socket.emit('join_room', {code, name:playerName}); },
+      quickMatch(){ socket.emit('quick_match', {name:playerName}); },
       cancelQuick(){ socket.emit('cancel_quick_match'); },
       submitDeck(deck){ socket.emit('submit_deck', {deck}); },
       submitHand(hand){ socket.emit('submit_hand', {hand}); },
@@ -5348,6 +5429,45 @@ function resumeGame(){
 document.getElementById('pauseBtn').addEventListener('click', pauseGame);
 document.getElementById('pauseResumeBtn').addEventListener('click', resumeGame);
 
+// ============================================================
+//  USERNAME EDIT
+// ============================================================
+function openNameEdit(){
+  const input = document.getElementById('nameEditInput');
+  input.value = playerName;
+  document.getElementById('nameEditCount').textContent = playerName.length;
+  document.getElementById('nameEditError').textContent = '';
+  document.getElementById('nameEditModal').classList.add('open');
+  setTimeout(()=>{ input.focus(); input.select(); }, 50);
+}
+document.getElementById('playerNameRow').addEventListener('click', openNameEdit);
+
+document.getElementById('nameEditInput').addEventListener('input', (e)=>{
+  document.getElementById('nameEditCount').textContent = e.target.value.length;
+});
+
+document.getElementById('nameEditCancel').addEventListener('click', ()=>{
+  document.getElementById('nameEditModal').classList.remove('open');
+});
+
+document.getElementById('nameEditSave').addEventListener('click', ()=>{
+  const raw = document.getElementById('nameEditInput').value;
+  const trimmed = raw.trim();
+  const errEl = document.getElementById('nameEditError');
+  if(!trimmed){
+    errEl.textContent = '名前を入力してください';
+    return;
+  }
+  if(trimmed.length > 12){
+    errEl.textContent = '12文字以内で入力してください';
+    return;
+  }
+  playerName = trimmed;
+  updatePlayerNameDisplay();
+  saveState();
+  document.getElementById('nameEditModal').classList.remove('open');
+});
+
 document.getElementById('pauseQuitBtn').addEventListener('click', ()=>{
   document.getElementById('pauseMain').classList.add('hidden');
   document.getElementById('pauseConfirm').classList.remove('hidden');
@@ -5759,6 +5879,16 @@ document.getElementById('saveDeck').addEventListener('click', ()=>{
 });
 document.getElementById('toBattle').addEventListener('click', ()=>{
   if(selectedDeck.length!==3) return;
+  if(battleMode==='story' || battleMode==='endless'){
+    regenStamina();
+    if(stamina < STAMINA_COST){
+      toastMessage(`⚡スタミナが足りません（次の回復まで${minutesUntilNextStamina()}分）`);
+      return;
+    }
+    stamina -= STAMINA_COST;
+    updateStaminaDisplay();
+    saveState();
+  }
   if(battleMode==='story') beginStoryChapter();
   else if(battleMode==='endless') beginEndlessRun();
   else if(battleMode==='online') submitOnlineDeck();
@@ -5834,6 +5964,9 @@ window.addEventListener('keydown', e=>{
 loadState();
 updateCoinDisplay();
 updateRankDisplay();
+updatePlayerNameDisplay();
+updateStaminaDisplay();
+setInterval(updateStaminaDisplay, 30000); // keep the home screen number honest while the app is open
 updateEndlessLabel();
 updateStoryProgressLabel();
 checkDailyLogin();
