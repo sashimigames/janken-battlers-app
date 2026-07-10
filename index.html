@@ -1499,6 +1499,16 @@
     display:flex; align-items:center; justify-content:center;
     pointer-events:none; opacity:0;
   }
+  .ult-video-overlay{
+    position:absolute; inset:0; z-index:30;
+    display:flex; align-items:center; justify-content:center;
+    background:#000; opacity:0; pointer-events:none;
+    transition:opacity 0.15s ease;
+  }
+  .ult-video-overlay.show{ opacity:1; pointer-events:auto; }
+  .ult-video-overlay video{
+    width:100%; height:100%; object-fit:contain;
+  }
   .special-cutin.show{ animation:cutinShow 1.15s ease forwards; }
   .cutin-flash{
     position:absolute; inset:0; opacity:0;
@@ -2324,6 +2334,9 @@
           <div class="cutin-charname" id="cutinCharName"></div>
           <div class="cutin-movename" id="cutinMoveName"></div>
         </div>
+      </div>
+      <div class="ult-video-overlay" id="ultVideoOverlay">
+        <video id="ultVideoPlayer" playsinline muted></video>
       </div>
       <div class="arena-card cpu" id="cpuCard">
         <div class="impact-burst" id="cpuBurst"><div class="burst-shape"></div></div>
@@ -4644,7 +4657,10 @@ const ULT_MULT = 2.5; // fallback damage mult for cards with no special ability 
 // (instaKillStreak, stackingBonus, negateLossOrDraw) — a second, parallel
 // gauge system on top would just muddy an identity that's already distinct.
 function canUseUltimate(mon){
-  return mon.rarity !== 'mgr';
+  // was "everything except MGR" — now SR/LSR only, per design change.
+  // MGR stays excluded too: those cards already run on their own kit rather
+  // than a chargeable gauge, so this isn't a case of "SR以上" leaving them out.
+  return mon.rarity === 'sr' || mon.rarity === 'lsr';
 }
 
 // Cards with a signature passive ability get an amplified, one-shot version of
@@ -4681,9 +4697,56 @@ function getUltimateEffect(mon){
 
 // resolves a turn where the player used their ultimate, the CPU's gauge auto-fired, or both.
 // each side that ults applies its own guaranteed effect independent of any hand throw this turn.
+//
+// SR/LSR characters with a dedicated video clip (ULT_VIDEO_MAP) get that clip played
+// full-screen FIRST, before any of the existing damage numbers / cut-in / HP updates —
+// per the request that the video is what plays "at the very start" of the ultimate.
+// If both sides ult on the same turn and BOTH have a video, only the player's plays
+// (simultaneous double-ults are rare, and stacking two full-screen clips isn't worth
+// the complexity); the CPU's numeric effect still resolves normally right after.
+const ULT_VIDEO_MAP = {
+  shizarisu: 'ult_shizarisu.mp4',
+  ascalon:   'ult_ascalon.mp4',
+  valkis:    'ult_valkis.mp4',
+  sousei_ou: 'ult_sousei_ou.mp4',
+  aither:    'ult_aither.mp4',
+};
+function playUltimateVideo(fileName, onDone){
+  const overlay = document.getElementById('ultVideoOverlay');
+  const vid = document.getElementById('ultVideoPlayer');
+  if(!overlay || !vid){ onDone(); return; }
+  let done = false;
+  const finish = ()=>{
+    if(done) return;
+    done = true;
+    overlay.classList.remove('show');
+    vid.pause();
+    vid.removeAttribute('src');
+    vid.load();
+    onDone();
+  };
+  vid.src = fileName;
+  vid.currentTime = 0;
+  vid.onended = finish;
+  vid.onerror = finish; // missing/broken clip shouldn't block the turn from resolving
+  overlay.classList.add('show');
+  const p = vid.play();
+  if(p && typeof p.catch === 'function') p.catch(finish); // autoplay blocked — just skip straight to the normal resolution
+  setTimeout(finish, 7000); // safety net in case 'ended' never fires
+}
 function resolveUltimateTurn(playerUsed, cpuUsed){
   const playerMon = G.player.active;
   const cpuMon = G.cpu.active;
+  const videoFile = playerUsed && ULT_VIDEO_MAP[playerMon.id] ? ULT_VIDEO_MAP[playerMon.id]
+                   : cpuUsed && ULT_VIDEO_MAP[cpuMon.id] ? ULT_VIDEO_MAP[cpuMon.id]
+                   : null;
+  if(videoFile){
+    playUltimateVideo(videoFile, ()=> doResolveUltimateTurn(playerUsed, cpuUsed, playerMon, cpuMon));
+  } else {
+    doResolveUltimateTurn(playerUsed, cpuUsed, playerMon, cpuMon);
+  }
+}
+function doResolveUltimateTurn(playerUsed, cpuUsed, playerMon, cpuMon){
   const banner = document.getElementById('resultBanner');
   const log = document.getElementById('battleLog');
 
