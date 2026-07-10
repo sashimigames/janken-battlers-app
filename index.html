@@ -2545,6 +2545,12 @@
 
   <div class="fade-flash" id="fadeFlash"></div>
 
+  <button id="audioMuteToggle" type="button" aria-label="サウンドのオン/オフ"
+    style="position:fixed; top:calc(env(safe-area-inset-top, 0px) + 10px); right:10px; z-index:9999;
+           width:38px; height:38px; border-radius:50%; border:none; cursor:pointer;
+           background:rgba(20,20,25,0.55); color:#fff; font-size:18px; line-height:1;
+           display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);">🔊</button>
+
   <!-- ===== AUDIO: sound effects and background music ===== -->
   <audio id="sndHit" preload="auto" src="sfx_hit.mp3"></audio>
   <audio id="sndSpecial" preload="auto" src="sfx_special.mp3"></audio>
@@ -2704,6 +2710,42 @@ function stopBGM(){
   }
   currentBgmKey = null;
   bgmPendingRetry = false;
+}
+
+// ---- background tab/app handling ----
+// pauses whatever BGM is playing when the app is backgrounded (tab switch, app
+// switcher, screen lock) and resumes the SAME track when it comes back, instead
+// of leaving audio playing silently-to-the-user-but-not-really behind the OS.
+let bgmWasPlayingBeforeHidden = false;
+document.addEventListener('visibilitychange', function(){
+  if(document.hidden){
+    bgmWasPlayingBeforeHidden = !!(currentBgmKey && BGM[currentBgmKey] && !BGM[currentBgmKey].paused);
+    if(currentBgmKey && BGM[currentBgmKey]) BGM[currentBgmKey].pause();
+  } else {
+    if(bgmWasPlayingBeforeHidden && currentBgmKey && BGM[currentBgmKey] && !audioMuted){
+      BGM[currentBgmKey].play().catch(()=>{ bgmPendingRetry = true; });
+    }
+    bgmWasPlayingBeforeHidden = false;
+  }
+});
+
+// ---- manual mute toggle ----
+// OS-level silent/manner-mode switches don't reliably mute web audio on every
+// platform (Android's ringer/DND modes only affect the ringtone stream, not
+// media playback, by design — and iOS's Web Audio API output ignores the
+// silent switch even when plain <audio> elements would respect it), so an
+// in-app toggle is the one control that reliably works everywhere.
+const audioMuteBtn = document.getElementById('audioMuteToggle');
+if(audioMuteBtn){
+  audioMuteBtn.addEventListener('click', function(){
+    audioMuted = !audioMuted;
+    audioMuteBtn.textContent = audioMuted ? '🔇' : '🔊';
+    if(audioMuted){
+      if(currentBgmKey && BGM[currentBgmKey]) BGM[currentBgmKey].pause();
+    } else if(currentBgmKey && BGM[currentBgmKey]){
+      BGM[currentBgmKey].play().catch(()=>{ bgmPendingRetry = true; });
+    }
+  });
 }
 
 // map of screen name -> BGM key; screens not listed here have no BGM (silence)
