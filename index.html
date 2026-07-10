@@ -2897,6 +2897,7 @@ S.title.addEventListener('click', ()=>{
 const SAVE_KEY = 'jankenBattlers_save_v1';
 let playerCoins = 1200; // starting balance (enough for one guaranteed 10-pull + a bit)
 let coinBalanceCorrectedV1 = true; // set false only for existing saves that predate this field (see loadState)
+let devCoinsGranted = false; // true once the ?devcoins=1 one-time grant has run on this save
 let ownedCards = { goo:1, paa:1, choki:1 }; // { cardId: countOwned } — starter roster owned from the beginning
 
 /* ===== growth systems: per-card level (coins), limit break (被り消費), player rank — all uncapped ===== */
@@ -2994,7 +2995,7 @@ let skipAutoSave = false; // set true right before a reset-and-reload so the bef
 function saveState(){
   if(skipAutoSave) return;
   try{
-    const payload = { playerCoins, coinBalanceCorrectedV1, ownedCards, selectedDeck, cardLevels, cardLB, playerRank, playerExp, endlessBest, storyMaxCleared, tutorialDone, seasonPrologueSeen, lastLoginDate, loginStreak, playerName, stamina, lastStaminaTime, favoriteCards };
+    const payload = { playerCoins, coinBalanceCorrectedV1, devCoinsGranted, ownedCards, selectedDeck, cardLevels, cardLB, playerRank, playerExp, endlessBest, storyMaxCleared, tutorialDone, seasonPrologueSeen, lastLoginDate, loginStreak, playerName, stamina, lastStaminaTime, favoriteCards };
     localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
   }catch(err){
     // localStorage can throw in rare cases (private browsing quota, etc).
@@ -3050,12 +3051,14 @@ function loadState(){
   if(typeof saved.playerCoins === 'number' && isFinite(saved.playerCoins)){
     playerCoins = saved.playerCoins;
   }
+  if(saved.devCoinsGranted) devCoinsGranted = true;
   // one-time correction for saves created while playerCoins briefly defaulted to
   // 99999 for testing (see the "TEMP: test build" note that used to sit on that
   // line). Anyone whose balance is still implausibly high gets clamped back down
   // to the real starting amount, exactly once — the flag stops this from ever
-  // touching a balance a player has legitimately earned since.
-  if(!saved.coinBalanceCorrectedV1 && playerCoins > 5000){
+  // touching a balance a player has legitimately earned since. Also skipped if
+  // devCoinsGranted is set, so it never clobbers the intentional ?devcoins=1 grant.
+  if(!saved.coinBalanceCorrectedV1 && !devCoinsGranted && playerCoins > 5000){
     playerCoins = 1200;
   }
   coinBalanceCorrectedV1 = true;
@@ -6648,6 +6651,19 @@ window.addEventListener('keydown', e=>{
 //  (CARDS, selectedDeck, etc.) since loadState() reads/validates against them.
 // ============================================================
 loadState();
+
+// Developer-only coin grant: only fires when YOU visit with ?devcoins=1 in the
+// URL (e.g. bookmark index.html?devcoins=1 on your own device). Regular players
+// who just open the normal link never see this — their save never gets this
+// query param, so they keep the standard starting balance. Runs once per save
+// (guarded by devCoinsGranted, persisted below) so it won't re-grant every load.
+if(new URLSearchParams(location.search).get('devcoins') === '1' && !devCoinsGranted){
+  playerCoins = 99999;
+  devCoinsGranted = true;
+  updateCoinDisplay();
+  saveState();
+}
+
 updateCoinDisplay();
 updateRankDisplay();
 updatePlayerNameDisplay();
