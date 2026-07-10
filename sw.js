@@ -1,11 +1,9 @@
 // Service Worker for ジャンケンバトラーズ
 //
 // IMPORTANT: bump CACHE_NAME every time you re-deploy a new build.
-// Testers' browsers will keep serving the OLD cached index.html forever
-// otherwise (network-first still refreshes the cache in the background,
-// but only after the next successful online load — bumping the version
-// forces an immediate clean switch instead of waiting for that).
-const CACHE_NAME = 'janken-battlers-v27';
+// This mainly matters for the offline fallback cache now (see below) — the
+// network-first fetch strategy no longer depends on it for freshness.
+const CACHE_NAME = 'janken-battlers-v28';
 
 const CORE_ASSETS = [
   './',
@@ -35,14 +33,22 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// network-first: testers always get the newest build while online (the big
-// html file just re-downloads), falling back to the cached copy so the game
-// still opens if they're offline (e.g. testing on a train, flaky wifi, etc).
+// network-first: testers always get the newest build while online, falling
+// back to the cached copy so the game still opens if they're offline.
+//
+// IMPORTANT: the network fetch below uses {cache: 'no-store'}. Without it,
+// this "network" request can still be silently answered by the BROWSER's own
+// HTTP cache (a separate layer underneath the Service Worker's Cache API) if
+// GitHub Pages sends any cache-friendly headers on index.html or the asset
+// files — meaning testers could keep seeing an old index.html, or an old
+// card image after it was replaced under the same filename, even though this
+// code "tried the network first" the whole time. no-store forces a real
+// round-trip to the server every time, which is what we actually want here.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: 'no-store' })
       .then((response) => {
         const copy = response.clone();
         caches.open(CACHE_NAME)
