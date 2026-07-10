@@ -2551,6 +2551,23 @@
   <audio id="bgmHome" preload="auto" loop src="bgm_home.mp3"></audio>
   <audio id="bgmBattle" preload="auto" loop src="bgm_battle.mp3"></audio>
   <audio id="bgmTitle" preload="auto" loop src="bgm_title.mp3"></audio>
+  <!-- added: gacha / result / collection / story / online audio -->
+  <audio id="sndUiTap" preload="auto" src="sfx_ui_tap.mp3"></audio>
+  <audio id="sndDailyBonus" preload="auto" src="sfx_daily_bonus.mp3"></audio>
+  <audio id="sndGachaPull" preload="auto" src="sfx_gacha_pull.mp3"></audio>
+  <audio id="sndGachaRevealSwell" preload="auto" src="sfx_gacha_reveal_swell.mp3"></audio>
+  <audio id="sndDeckConfirm" preload="auto" src="sfx_deck_confirm.mp3"></audio>
+  <audio id="sndRarityR" preload="auto" src="sfx_rarity_r.mp3"></audio>
+  <audio id="sndRaritySR" preload="auto" src="sfx_rarity_sr.mp3"></audio>
+  <audio id="sndRarityLSR" preload="auto" src="sfx_rarity_lsr.mp3"></audio>
+  <audio id="sndVictoryStinger" preload="auto" src="sfx_victory_stinger.mp3"></audio>
+  <audio id="sndCoin" preload="auto" src="sfx_coin.mp3"></audio>
+  <audio id="sndMatchFound" preload="auto" src="sfx_match_found.mp3"></audio>
+  <audio id="bgmResultWin" preload="auto" src="bgm_result_win.mp3"></audio>
+  <audio id="bgmResultLose" preload="auto" src="bgm_result_lose.mp3"></audio>
+  <audio id="bgmCollection" preload="auto" loop src="bgm_collection.mp3"></audio>
+  <audio id="bgmStory" preload="auto" loop src="bgm_story.mp3"></audio>
+  <audio id="bgmOnline" preload="auto" loop src="bgm_online.mp3"></audio>
 
 </div>
 
@@ -2580,11 +2597,29 @@ function go(name){
 const SFX = {
   hit: document.getElementById('sndHit'),
   special: document.getElementById('sndSpecial'),
+  uiTap: document.getElementById('sndUiTap'),
+  tap: document.getElementById('sndUiTap'), // alias: playerChoose() calls playSE('tap')
+  dailyBonus: document.getElementById('sndDailyBonus'),
+  gachaPull: document.getElementById('sndGachaPull'),
+  gachaRevealSwell: document.getElementById('sndGachaRevealSwell'),
+  deckConfirm: document.getElementById('sndDeckConfirm'),
+  rarityR: document.getElementById('sndRarityR'),
+  raritySR: document.getElementById('sndRaritySR'),
+  rarityLSR: document.getElementById('sndRarityLSR'),
+  rarityMGR: document.getElementById('sndRarityLSR'), // TODO: swap once a dedicated MGR sting exists
+  victoryStinger: document.getElementById('sndVictoryStinger'),
+  coin: document.getElementById('sndCoin'),
+  matchFound: document.getElementById('sndMatchFound'),
 };
 const BGM = {
   home: document.getElementById('bgmHome'),
   battle: document.getElementById('bgmBattle'),
   title: document.getElementById('bgmTitle'),
+  collection: document.getElementById('bgmCollection'),
+  story: document.getElementById('bgmStory'),
+  online: document.getElementById('bgmOnline'),
+  resultWin: document.getElementById('bgmResultWin'),
+  resultLose: document.getElementById('bgmResultLose'),
 };
 let sfxVolume = 0.85;
 let bgmVolume = 0.55;
@@ -2618,7 +2653,7 @@ const SYNTH_SE = {
   win:  { notes:[[523.25,0,0.09],[659.25,0.08,0.09],[783.99,0.16,0.14]], type:'triangle', gain:0.28 }, // C-E-G rising
   lose: { notes:[[392.00,0,0.12],[293.66,0.11,0.20]], type:'sawtooth', gain:0.20 },                      // G-D falling
   draw: { notes:[[440.00,0,0.10]], type:'sine', gain:0.16 },                                             // neutral A
-  tap:  { notes:[[880.00,0,0.05]], type:'square', gain:0.12 },                                           // quick click
+  // 'tap' used to live here as a synthesized blip; now uses the real sfx_ui_tap.mp3 asset (see SFX.uiTap)
 };
 function playSynthSE(key){
   const ctx = getAudioCtx();
@@ -2670,8 +2705,19 @@ function stopBGM(){
 }
 
 // map of screen name -> BGM key; screens not listed here have no BGM (silence)
-const SCREEN_BGM_MAP = { home: 'home', arcadeBattle: 'battle', splash: 'title', title: 'title' };
+// NOTE: 'arcadeResult' is deliberately absent here — its BGM depends on win/lose,
+// which is resolved separately in handleScreenAudio() via lastResultWon.
+// NOTE: 'gachaHome' has no track yet (asset pending) so it stays silent for now.
+const SCREEN_BGM_MAP = {
+  home: 'home', arcadeBattle: 'battle', splash: 'title', title: 'title',
+  collectionHome: 'collection', storyChapters: 'story', online: 'online',
+};
+let lastResultWon = true; // set right before each go('arcadeResult') call
 function handleScreenAudio(name){
+  if(name === 'arcadeResult'){
+    playBGM(lastResultWon ? 'resultWin' : 'resultLose');
+    return;
+  }
   const key = SCREEN_BGM_MAP[name];
   if(key){
     playBGM(key);
@@ -3187,6 +3233,7 @@ const netHandlers = {
     const opp = (d.players[1] && d.players[1].name) || 'あいて';
     onlineOpponentName = opp;
     document.getElementById('oppName').textContent = opp;
+    playSE('matchFound');
     olShowView('matched');
     setTimeout(()=>{
       battleMode = 'online';
@@ -4795,7 +4842,7 @@ function afterResolve(koHappened){
 function endArcadeGame(){
   clearInterval(G.timer);
   const won = G.cpu.lives<=0 && G.player.lives>0;
-  playSE(won ? 'win' : 'lose'); // outcome jingle, before mode-specific result handling
+  playSE(won ? 'victoryStinger' : 'lose'); // outcome jingle, before mode-specific result handling
   if(battleMode==='tutorial'){ return endTutorialBattle(won); }
   if(battleMode==='endless'){ return endEndlessFloor(won); }
   if(battleMode==='story'){ return endStoryBattle(won); }
@@ -4806,6 +4853,7 @@ function endArcadeGame(){
   if(won){
     const coinReward = 50, expReward = 25;
     playerCoins += coinReward;
+    playSE('coin');
     updateCoinDisplay();
     big.textContent='VICTORY';
     big.className='result-big victory';
@@ -4819,6 +4867,7 @@ function endArcadeGame(){
   }
   const flash=document.getElementById('fadeFlash');
   flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
+  lastResultWon = won;
   setTimeout(()=> go('arcadeResult'), 250);
 }
 
@@ -4833,6 +4882,7 @@ function endOnlineBattle(won){
   if(won){
     const coinReward = 50, expReward = 25;
     playerCoins += coinReward;
+    playSE('coin');
     updateCoinDisplay();
     big.textContent='VICTORY';
     big.className='result-big victory';
@@ -4847,6 +4897,7 @@ function endOnlineBattle(won){
   if(net){ net.reportBattleEnd(); net.leave(); net = null; }
   const flash=document.getElementById('fadeFlash');
   flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
+  lastResultWon = won;
   setTimeout(()=> go('arcadeResult'), 250);
 }
 
@@ -4976,6 +5027,7 @@ function endEndlessFloor(won){
     let expReward = 15 + 5*ENDLESS.floor;
     if(boss){ coinReward = Math.round(coinReward*2); expReward = Math.round(expReward*1.5); }
     playerCoins += coinReward;
+    playSE('coin');
     ENDLESS.earned += coinReward;
     ENDLESS.earnedExp += expReward;
     updateCoinDisplay();
@@ -5011,6 +5063,7 @@ function finishEndlessRun(reason){
   updateEndlessLabel();
   const flash=document.getElementById('fadeFlash');
   flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
+  lastResultWon = (reason !== 'defeat');
   setTimeout(()=> go('arcadeResult'), 250);
 }
 
@@ -5328,6 +5381,7 @@ function checkDailyLogin(){
   document.getElementById('loginStreak').textContent = loginStreak > 1 ? `${loginStreak}日連続ログイン中！` : 'ようこそ！';
   const btn = document.getElementById('loginClaimBtn');
   btn.onclick = ()=>{
+    playSE('dailyBonus');
     playerCoins += reward;
     lastLoginDate = today;
     updateCoinDisplay();
@@ -5516,6 +5570,7 @@ function endStoryBattle(won){
       storyMaxCleared = ch.num;
       const reward = storyChapterReward(ch.num);
       playerCoins += reward.coins;
+      playSE('coin');
       updateCoinDisplay();
       gainExp(reward.exp);
       big.textContent = `第${ch.num}章 突破！`;
@@ -5538,6 +5593,7 @@ function endStoryBattle(won){
   }
   const flash=document.getElementById('fadeFlash');
   flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
+  lastResultWon = won;
   setTimeout(()=> go('arcadeResult'), 250);
 }
 
@@ -5724,6 +5780,7 @@ function tryPullGacha(count, cost){
     toastMessage('コインが足りません');
     return;
   }
+  playSE('gachaPull');
   playerCoins -= cost;
   updateCoinDisplay();
   lastPull = { count, cost };
@@ -5743,6 +5800,7 @@ const TIER_BURST_COLOR = { r:'#bfe0f2', sr:'#d9a3e8', lsr:'#ffe9a8', mgr:'#ffe9a
 
 function startGachaReveal(results){
   go('gachaReveal');
+  playSE('gachaRevealSwell');
   const stage = document.getElementById('grStage');
   const circle = document.getElementById('grCircle');
   const burst = document.getElementById('grBurst');
@@ -5785,7 +5843,8 @@ function startGachaReveal(results){
       void burst.offsetWidth;
       burst.classList.add('go');
     }
-    if(bestTier!=='r') playSE('special');
+    const RARITY_SE_MAP = { r:'rarityR', sr:'raritySR', lsr:'rarityLSR', mgr:'rarityMGR' };
+    if(RARITY_SE_MAP[bestTier]) playSE(RARITY_SE_MAP[bestTier]);
     if(bestTier==='lsr' || bestTier==='mgr'){
       if(flash){
         flash.classList.remove('go');
@@ -6035,6 +6094,7 @@ document.getElementById('arcadeDeckBack').addEventListener('click', ()=> goHomeR
 document.getElementById('deckBuilderBack').addEventListener('click', ()=> goHomeReset());
 document.getElementById('saveDeck').addEventListener('click', ()=>{
   if(selectedDeck.length!==3) return;
+  playSE('deckConfirm');
   saveState();
   toastMessage('デッキを保存しました');
   go('home');
