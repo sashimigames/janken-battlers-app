@@ -1797,6 +1797,22 @@
   .t-kusa{--c-light:#8fd0a0; --c-mid:#3f9e5e; --c-deep:#1a4a2a;}
   .t-doro{--c-light:#c9a06a; --c-mid:#8c6a33; --c-deep:#3e2e14;}
   .t-hika{--c-light:#fbefc4; --c-mid:#e0b84a; --c-deep:#7a5e1c;}
+  .t-tsurara{--c-light:#e8f7ff; --c-mid:#5ab8d9; --c-deep:#1b4a5c;}
+  .t-hibana{--c-light:#ffc49e; --c-mid:#b8341a; --c-deep:#421206;}
+  .t-shibire{--c-light:#e0c8ff; --c-mid:#7b4fc9; --c-deep:#2a1850;}
+  .t-hagiri{--c-light:#b8e8c8; --c-mid:#4aae7a; --c-deep:#173d28;}
+  .t-kurousa{--c-light:#b89ad8; --c-mid:#5a3a8c; --c-deep:#1a1028;}
+  .t-karasu{--c-light:#9a88b0; --c-mid:#3a2856; --c-deep:#0c0814;}
+  .t-mogura{--c-light:#d8b888; --c-mid:#a67d3f; --c-deep:#4a3418;}
+  .t-ganseki{--c-light:#c4b49a; --c-mid:#7d6b4a; --c-deep:#332a18;}
+  .t-kouki{--c-light:#fff4d0; --c-mid:#f0c860; --c-deep:#8a6820;}
+  .t-hikariga{--c-light:#f5eeff; --c-mid:#d4b8e8; --c-deep:#4a3a5c;}
+  .t-awagaeru{--c-light:#b0e8d8; --c-mid:#3aa88c; --c-deep:#123a30;}
+  .t-fuwakurage{--c-light:#d8f0ff; --c-mid:#7ac8e0; --c-deep:#2a5868;}
+  .t-shiogani{--c-light:#8ad0e0; --c-mid:#2888a8; --c-deep:#0e3848;}
+  .t-amausa{--c-light:#fff8e8; --c-mid:#e8c878; --c-deep:#5a4520;}
+  .t-tsubame{--c-light:#e8f4ff; --c-mid:#8ab8e0; --c-deep:#2a4868;}
+  .t-hayabusa{--c-light:#f0e8d0; --c-mid:#b89858; --c-deep:#3a2e18;}
 
   .fade-flash{
     position:absolute; inset:0; background:#fff;
@@ -3666,8 +3682,152 @@ const CARDS = {
              '<span class="killshot">グーで勝つたびに</span>、相手の<b>ATKを-5</b>する（永続蓄積）。',
              '<b>相手がパーを出した場合</b>、追加で+15ダメージ。'
            ] },
+  tsurara: { id:'tsurara', name:'氷蟹-ツララ', attr:'氷', theme:'t-tsurara', rarity:'n', num:'No.013',
+           hand:'scissors', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_tsurara_portrait.webp', cardImg:'card_tsurara_full.webp', pixelImg:'card_tsurara_sprite.webp',
+           flavor:'ハサミの先から霜が伸びる。挟まれるとしばらく指先が痺れる。',
+           colors:{light:'#E8F7FF', mid:'#5AB8D9', deep:'#1B4A5C', barLight:'#3F98B8', barDeep:'#153B48',
+                    accent:'#F0FBFF', nameColor:'#F8FDFF', gem:'#6AC4E0', tagFg:'#E8F8FC'},
+           effects:[
+             '<b>チョキで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>チョキで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  hibana: { id:'hibana', name:'炎鼠-ヒバナ', attr:'炎', theme:'t-hibana', rarity:'n', num:'No.014',
+           hand:'rock', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_hibana_portrait.webp', cardImg:'card_hibana_full.webp', pixelImg:'card_hibana_sprite.webp',
+           flavor:'走った後に足跡が焦げている。本人は気にしていない。',
+           colors:{light:'#FFC49E', mid:'#B8341A', deep:'#421206', barLight:'#96280F', barDeep:'#320D04',
+                    accent:'#FFDEC4', nameColor:'#FFEEDD', gem:'#D4501F', tagFg:'#FFE4CC'},
+           effects:[
+             '<b>グーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>グーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  shibire: { id:'shibire', name:'雷母-シビレ', attr:'雷', theme:'t-shibire', rarity:'n', num:'No.015',
+           hand:'paper', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_shibire_portrait.webp', cardImg:'card_shibire_full.webp', pixelImg:'card_shibire_sprite.webp',
+           flavor:'触手の先が常にパチパチと光っている。抱きつかれると軽く痺れる。',
+           colors:{light:'#E0C8FF', mid:'#7B4FC9', deep:'#2A1850', barLight:'#623DA6', barDeep:'#20123C',
+                    accent:'#EEE0FF', nameColor:'#F6EFFF', gem:'#9166D8', tagFg:'#EDE0FA'},
+           effects:[
+             '<b>パーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>パーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  hagiri: { id:'hagiri', name:'葉切蟷螂-ハギリ', attr:'草', theme:'t-hagiri', rarity:'n', num:'No.016',
+           hand:'scissors', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_hagiri_portrait.webp', cardImg:'card_hagiri_full.webp', pixelImg:'card_hagiri_sprite.webp',
+           flavor:'鎌の切れ味には自信がある。葉っぱ相手には無敵らしい。',
+           colors:{light:'#B8E8C8', mid:'#4AAE7A', deep:'#173D28', barLight:'#358C5E', barDeep:'#122E1E',
+                    accent:'#D0F4DC', nameColor:'#E8FBEE', gem:'#5CC08A', tagFg:'#DCF6E4'},
+           effects:[
+             '<b>チョキで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>チョキで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  kurousa: { id:'kurousa', name:'闇兎-クロウサ', attr:'闇冥', theme:'t-kurousa', rarity:'n', num:'No.017',
+           hand:'rock', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_kurousa_portrait.webp', cardImg:'card_kurousa_full.webp', pixelImg:'card_kurousa_sprite.webp',
+           flavor:'夜にしか姿を見せない。月のない夜は特に機嫌がいい。',
+           colors:{light:'#B89AD8', mid:'#5A3A8C', deep:'#1A1028', barLight:'#472E70', barDeep:'#140C1E',
+                    accent:'#D0BAE8', nameColor:'#E8DCF6', gem:'#6F4AA0', tagFg:'#DED0F0'},
+           effects:[
+             '<b>グーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>グーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  karasu: { id:'karasu', name:'影鴉-カラス', attr:'闇冥', theme:'t-karasu', rarity:'n', num:'No.018',
+           hand:'scissors', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_karasu_portrait.webp', cardImg:'card_karasu_full.webp', pixelImg:'card_karasu_sprite.webp',
+           flavor:'鳴き声を聞いた者は、なぜか少し不安になる。害はない。',
+           colors:{light:'#9A88B0', mid:'#3A2856', deep:'#0C0814', barLight:'#2E1E44', barDeep:'#08050E',
+                    accent:'#B8A8CC', nameColor:'#D8CCE8', gem:'#4A3468', tagFg:'#C8BAD8'},
+           effects:[
+             '<b>チョキで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>チョキで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  mogura: { id:'mogura', name:'土竜-モグラ', attr:'土', theme:'t-mogura', rarity:'n', num:'No.019',
+           hand:'paper', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_mogura_portrait.webp', cardImg:'card_mogura_full.webp', pixelImg:'card_mogura_sprite.webp',
+           flavor:'掘るのが得意で、気づくと庭に穴が増えている。本人に悪気はない。',
+           colors:{light:'#D8B888', mid:'#A67D3F', deep:'#4A3418', barLight:'#856530', barDeep:'#382712',
+                    accent:'#E8D2A8', nameColor:'#F6E9D0', gem:'#BC9450', tagFg:'#EFDFBC'},
+           effects:[
+             '<b>パーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>パーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  ganseki: { id:'ganseki', name:'岩蟹-ガンセキ', attr:'土', theme:'t-ganseki', rarity:'n', num:'No.020',
+           hand:'scissors', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_ganseki_portrait.webp', cardImg:'card_ganseki_full.webp', pixelImg:'card_ganseki_sprite.webp',
+           flavor:'甲羅が岩そのもの。動かないと本物の石と間違われる。',
+           colors:{light:'#C4B49A', mid:'#7D6B4A', deep:'#332A18', barLight:'#635430', barDeep:'#282012',
+                    accent:'#D8CCB4', nameColor:'#EDE4D2', gem:'#94815C', tagFg:'#E0D5BE'},
+           effects:[
+             '<b>チョキで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>チョキで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  kouki: { id:'kouki', name:'光亀-コウキ', attr:'光', theme:'t-kouki', rarity:'n', num:'No.021',
+           hand:'rock', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_kouki_portrait.webp', cardImg:'card_kouki_full.webp', pixelImg:'card_kouki_sprite.webp',
+           flavor:'甲羅がほのかに光る。日向で充電しているらしい。',
+           colors:{light:'#FFF4D0', mid:'#F0C860', deep:'#8A6820', barLight:'#CCA340', barDeep:'#6A4E16',
+                    accent:'#FFF9E4', nameColor:'#FFFCF0', gem:'#F5D478', tagFg:'#FFF6D8'},
+           effects:[
+             '<b>グーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>グーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  hikariga: { id:'hikariga', name:'光蛾-ヒカリガ', attr:'光', theme:'t-hikariga', rarity:'n', num:'No.022',
+           hand:'paper', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_hikariga_portrait.webp', cardImg:'card_hikariga_full.webp', pixelImg:'card_hikariga_sprite.webp',
+           flavor:'羽ばたくたびに鱗粉がふわりと光る。灯りに集まる癖がある。',
+           colors:{light:'#F5EEFF', mid:'#D4B8E8', deep:'#4A3A5C', barLight:'#B090C8', barDeep:'#3A2C48',
+                    accent:'#FAF4FF', nameColor:'#FDFAFF', gem:'#DEC4EE', tagFg:'#F6EEFC'},
+           effects:[
+             '<b>パーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>パーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  awagaeru: { id:'awagaeru', name:'水泡蛙-アワガエル', attr:'水', theme:'t-awagaeru', rarity:'n', num:'No.023',
+           hand:'rock', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_awagaeru_portrait.webp', cardImg:'card_awagaeru_full.webp', pixelImg:'card_awagaeru_sprite.webp',
+           flavor:'鳴くたびに水泡を吐く。池の主だと自称しているが誰も認めていない。',
+           colors:{light:'#B0E8D8', mid:'#3AA88C', deep:'#123A30', barLight:'#2C8870', barDeep:'#0E2E26',
+                    accent:'#CCF4E8', nameColor:'#E4FBF4', gem:'#4EBC9E', tagFg:'#DAF6EC'},
+           effects:[
+             '<b>グーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>グーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  fuwakurage: { id:'fuwakurage', name:'漂月水母-フワクラゲ', attr:'水', theme:'t-fuwakurage', rarity:'n', num:'No.024',
+           hand:'paper', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_fuwakurage_portrait.webp', cardImg:'card_fuwakurage_full.webp', pixelImg:'card_fuwakurage_sprite.webp',
+           flavor:'夜の水面をふわふわと漂う。触れると仄かに光る。',
+           colors:{light:'#D8F0FF', mid:'#7AC8E0', deep:'#2A5868', barLight:'#5CA8C0', barDeep:'#204652',
+                    accent:'#E8F8FF', nameColor:'#F4FCFF', gem:'#8CD4E8', tagFg:'#E4F6FC'},
+           effects:[
+             '<b>パーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>パーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  shiogani: { id:'shiogani', name:'潮流蟹-シオガニ', attr:'水', theme:'t-shiogani', rarity:'n', num:'No.025',
+           hand:'scissors', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_shiogani_portrait.webp', cardImg:'card_shiogani_full.webp', pixelImg:'card_shiogani_sprite.webp',
+           flavor:'ハサミで潮の流れを読む。当たったためしはあまりない。',
+           colors:{light:'#8AD0E0', mid:'#2888A8', deep:'#0E3848', barLight:'#1F6E88', barDeep:'#0A2C38',
+                    accent:'#B4E4EE', nameColor:'#DCF4F8', gem:'#38A0BC', tagFg:'#CCECF2'},
+           effects:[
+             '<b>チョキで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>チョキで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  amausa: { id:'amausa', name:'天羽兎-アマウサ', attr:'天', theme:'t-amausa', rarity:'n', num:'No.026',
+           hand:'rock', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_amausa_portrait.webp', cardImg:'card_amausa_full.webp', pixelImg:'card_amausa_sprite.webp',
+           flavor:'背中に小さな翼がある。飛べないが、本人は飛んでいるつもり。',
+           colors:{light:'#FFF8E8', mid:'#E8C878', deep:'#5A4520', barLight:'#C4A25C', barDeep:'#463518',
+                    accent:'#FFFBF0', nameColor:'#FFFEF8', gem:'#F0D896', tagFg:'#FFF8E4'},
+           effects:[
+             '<b>グーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>グーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  tsubame: { id:'tsubame', name:'天燕-ツバメ', attr:'天', theme:'t-tsubame', rarity:'n', num:'No.027',
+           hand:'paper', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_tsubame_portrait.webp', cardImg:'card_tsubame_full.webp', pixelImg:'card_tsubame_sprite.webp',
+           flavor:'雲間を縫うように飛ぶ。羽ばたきの跡が薄く光の筋を残す。',
+           colors:{light:'#E8F4FF', mid:'#8AB8E0', deep:'#2A4868', barLight:'#6A9CC8', barDeep:'#203A52',
+                    accent:'#F2F9FF', nameColor:'#FAFCFF', gem:'#9EC8E8', tagFg:'#EAF5FC'},
+           effects:[
+             '<b>パーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>パーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  hayabusa: { id:'hayabusa', name:'天隼-ハヤブサ', attr:'天', theme:'t-hayabusa', rarity:'n', num:'No.028',
+           hand:'scissors', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_hayabusa_portrait.webp', cardImg:'card_hayabusa_full.webp', pixelImg:'card_hayabusa_sprite.webp',
+           flavor:'急降下の速さは群れ一番。獲物より目立ちたがりなだけらしい。',
+           colors:{light:'#F0E8D0', mid:'#B89858', deep:'#3A2E18', barLight:'#957938', barDeep:'#2C2312',
+                    accent:'#F8F2E0', nameColor:'#FCF9F0', gem:'#C8A968', tagFg:'#F4ECD8'},
+           effects:[
+             '<b>チョキで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>チョキで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
 };
-const CARD_POOL = ['goo','paa','choki','yami','kusa','doro','hika','usagi','tori','risu','katsumuri','sousei_ou','gcp_rock','gcp_scissors','gcp_paper','fubuki','ignis','biribiri','lumina','kurogane','thornweed','garock','abyssal','shizarisu','glacia','kaguray','raikou','sylvan','ascalon','valkis','aither'];
+const CARD_POOL = ['goo','paa','choki','yami','kusa','doro','hika','usagi','tori','risu','katsumuri','sousei_ou','gcp_rock','gcp_scissors','gcp_paper','fubuki','ignis','biribiri','lumina','kurogane','thornweed','garock','abyssal','shizarisu','glacia','kaguray','raikou','sylvan','ascalon','valkis','aither','tsurara','hibana','shibire','hagiri','kurousa','karasu','mogura','ganseki','kouki','hikariga','awagaeru','fuwakurage','shiogani','amausa','tsubame','hayabusa'];
 
 const HAND_EMOJI = { rock:'✊', scissors:'✌️', paper:'🖐️' };
 const HAND_JP    = { rock:'グー', scissors:'チョキ', paper:'パー' };
@@ -5502,7 +5662,9 @@ document.getElementById('pauseConfirmYes').addEventListener('click', ()=>{
 //  GACHA SYSTEM
 // ============================================================
 const GACHA_POOL = {
-  n:   ['goo','paa','choki','yami','kusa','doro','hika','usagi','tori','risu','katsumuri'],
+  n:   ['goo','paa','choki','yami','kusa','doro','hika','usagi','tori','risu','katsumuri',
+        'tsurara','hibana','shibire','hagiri','kurousa','karasu','mogura','ganseki',
+        'kouki','hikariga','awagaeru','fuwakurage','shiogani','amausa','tsubame','hayabusa'],
   r:   ['fubuki','ignis','biribiri','lumina','kurogane','thornweed','garock','abyssal',
         'glacia','kaguray','raikou','sylvan'], // godschallenge season cards, folded into the same pool
   sr:  ['shizarisu','ascalon','valkis'],        // godschallenge season cards, folded into the same pool
