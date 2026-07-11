@@ -762,6 +762,18 @@
   .raid-hand-row{ display:flex; gap:10px; justify-content:center; margin-top:auto; padding-bottom:10px; }
 
   .ol-hero-ic{font-size:46px; filter:drop-shadow(0 3px 6px rgba(0,0,0,0.5));}
+  .raid-select-visual-wrap{ position:relative; text-align:center; margin-bottom:4px; }
+  .raid-select-boss-img{
+    width:74%; max-width:210px; aspect-ratio:1/1; object-fit:cover; object-position:50% 22%;
+    border-radius:50%; border:2px solid rgba(230,200,120,0.55);
+    box-shadow:0 6px 22px rgba(0,0,0,0.6), 0 0 28px rgba(150,70,210,0.4);
+  }
+  .raid-limited-badge{
+    display:inline-block; font-family:"Cinzel",serif; font-weight:800; font-size:10px;
+    letter-spacing:.08em; color:#180c28; background:linear-gradient(135deg,var(--gold-bright),var(--gold));
+    padding:4px 12px; border-radius:20px; margin-bottom:12px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.4);
+  }
   .ol-lead{font-size:14px; color:var(--gold-bright); text-align:center; margin:0; font-family:"Shippori Mincho",serif; font-weight:700;}
   .ol-status{font-size:13px; color:var(--gold); opacity:0.85; text-align:center; margin:0;}
   .ol-substatus{font-size:11px; color:var(--gold); opacity:0.6; margin:0; font-family:"Cinzel",serif;}
@@ -2354,8 +2366,11 @@
     <div class="ol-body">
       <!-- view: difficulty select -->
       <div class="raid-view" data-view="select">
-        <div class="ol-hero-ic">😈</div>
-        <p class="ol-lead">堕天使-エレボスに、2人で挑もう</p>
+        <div class="raid-select-visual-wrap">
+          <span class="raid-limited-badge">期間限定レイドボス</span><br>
+          <img class="raid-select-boss-img" src="erebos_raid_visual.jpg" alt="堕天使-エレボス">
+        </div>
+        <p class="ol-lead">堕天使-エレボスに挑戦</p>
         <button class="raid-diff-btn diff-easy" data-diff="easy">
           <span class="rdb-name">初級</span>
           <span class="rdb-sub">推奨カードLv10 ・ 報酬 🪙300</span>
