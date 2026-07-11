@@ -2081,7 +2081,7 @@
           <span class="ic">⚡</span><span class="val" id="staminaVal">5</span><span class="sub">/5</span>
         </div>
         <div class="res-chip add" id="coinChip">
-          <span class="ic">🪙</span><span class="val" id="coinVal">999999</span>
+          <span class="ic">🪙</span><span class="val" id="coinVal">1200</span>
           <span class="plus">＋</span>
         </div>
       </div>
@@ -2449,7 +2449,7 @@
     </div>
 
     <div class="gacha-coin-row">
-      <span class="ic">🪙</span><span id="gachaCoinVal">999999</span>
+      <span class="ic">🪙</span><span id="gachaCoinVal">1200</span>
     </div>
 
     <div class="gacha-buttons">
@@ -2909,9 +2909,10 @@ S.title.addEventListener('click', ()=>{
 
 /* ===== player progression state (coins, owned-card collection) ===== */
 const SAVE_KEY = 'jankenBattlers_save_v1';
-let playerCoins = 999999; // TEMP: everyone gets a big balance for now — revert to 1200 later (see loadState() for the matching override on existing saves)
+let playerCoins = 1200; // starting balance (enough for one guaranteed 10-pull + a bit)
 let coinBalanceCorrectedV1 = true; // set false only for existing saves that predate this field (see loadState)
 let devCoinsGranted = false; // true once the ?devcoins=1 one-time grant has run on this save
+let coinRevertV2Applied = true; // set false only for saves that still have the temporary 999999 bump (see loadState)
 let ownedCards = { goo:1, paa:1, choki:1 }; // { cardId: countOwned } — starter roster owned from the beginning
 
 /* ===== growth systems: per-card level (coins), limit break (被り消費), player rank — all uncapped ===== */
@@ -3009,7 +3010,7 @@ let skipAutoSave = false; // set true right before a reset-and-reload so the bef
 function saveState(){
   if(skipAutoSave) return;
   try{
-    const payload = { playerCoins, coinBalanceCorrectedV1, devCoinsGranted, ownedCards, selectedDeck, cardLevels, cardLB, playerRank, playerExp, endlessBest, storyMaxCleared, tutorialDone, seasonPrologueSeen, lastLoginDate, loginStreak, playerName, stamina, lastStaminaTime, favoriteCards };
+    const payload = { playerCoins, coinBalanceCorrectedV1, devCoinsGranted, coinRevertV2Applied, ownedCards, selectedDeck, cardLevels, cardLB, playerRank, playerExp, endlessBest, storyMaxCleared, tutorialDone, seasonPrologueSeen, lastLoginDate, loginStreak, playerName, stamina, lastStaminaTime, favoriteCards };
     localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
   }catch(err){
     // localStorage can throw in rare cases (private browsing quota, etc).
@@ -3076,11 +3077,14 @@ function loadState(){
     playerCoins = 1200;
   }
   coinBalanceCorrectedV1 = true;
-  // TEMP: everyone's balance gets forced to 999999 on next load, existing saves
-  // included — this is deliberately blunt and easy to find/delete once it's time
-  // to revert (just remove this one line; the 1200 default above and the
-  // clamp-down logic right above it are untouched and still there for later).
-  playerCoins = 999999;
+  // one-time revert of the temporary "everyone gets 999999" bump — brings
+  // existing saves back down to the real 1200 starting balance, exactly once.
+  // Skipped once already applied (so it never claws back coins earned
+  // afterward) and skipped for the ?devcoins=1 grant, same as the clamp above.
+  if(!saved.coinRevertV2Applied && !devCoinsGranted){
+    playerCoins = 1200;
+  }
+  coinRevertV2Applied = true;
   if(saved.ownedCards && typeof saved.ownedCards === 'object'){
     // only trust card ids that still actually exist, in case the roster
     // has changed since this save was written
