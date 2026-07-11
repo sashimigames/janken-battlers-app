@@ -6346,14 +6346,15 @@ function startGachaReveal(results){
           <div class="flip-front"><img src="${c.img}" alt="">${r.isNew ? '<div class="new-badge">NEW</div>' : ''}</div>
         </div>`;
       // long-press (~450ms) a *flipped* card to peek at the full card design;
-      // face-down cards stay secret — the `revealed` gate matters
+      // still-face-down cards stay secret — gated on THIS card's own flipped
+      // state now, not a single reveal-everything flag
       let lpTimer = null;
       let lpFired = false;
       el.addEventListener('pointerdown', ()=>{
         lpFired = false;
         clearTimeout(lpTimer);
         lpTimer = setTimeout(()=>{
-          if(!revealed) return;
+          if(!el.classList.contains('flipped')) return;
           lpFired = true;
           openFullCard(r.id);
         }, 450);
@@ -6364,27 +6365,46 @@ function startGachaReveal(results){
       el.addEventListener('pointercancel', cancelLP);
       el.addEventListener('contextmenu', e=> e.preventDefault());
       el.addEventListener('click', (e)=>{
-        if(lpFired){ lpFired = false; e.preventDefault(); e.stopPropagation(); }
+        if(lpFired){ lpFired = false; e.preventDefault(); e.stopPropagation(); return; }
+        flipOne(el);
       });
       cardsWrap.appendChild(el);
     });
   }
 
-  function flipAll(){
-    if(revealed) return;
-    revealed = true;
+  // taps flip cards one at a time now — a full instant reveal felt like it was
+  // stepping on its own confirmation-video payoff, so nothing auto-flips
+  // anymore except the long idle-safety fallback down at the bottom of this
+  // function, and the skip button (which now means "flip whatever's left").
+  let flippedCount = 0;
+  function flipOne(el){
+    if(el.classList.contains('flipped')) return;
+    if(!revealed){ revealed = true; clearTimeout(telegraphTimer); } // first tap locks in the telegraph state
+    clearTimeout(autoTimer); // any real engagement cancels the idle safety-net
+    el.classList.add('flipped');
+    playSE('hit');
+    flippedCount++;
+    if(flippedCount >= results.length){
+      skipBtn.classList.add('hidden');
+      setTimeout(()=> showResultsSummary(), 550);
+    }
+  }
+  function flipRemaining(){
+    if(!revealed){ revealed = true; clearTimeout(telegraphTimer); }
     clearTimeout(autoTimer);
-    clearTimeout(telegraphTimer);
     circle.style.display = 'none';
     circle.classList.remove('tier-r','tier-sr','tier-lsr');
-    skipBtn.classList.add('hidden');
     const tierVideoEl = document.getElementById('grTierVideo');
     if(tierVideoEl){ tierVideoEl.classList.remove('show'); tierVideoEl.pause(); }
-    const cards = cardsWrap.querySelectorAll('.flip-card');
+    skipBtn.classList.add('hidden');
+    const cards = Array.from(cardsWrap.querySelectorAll('.flip-card:not(.flipped)'));
     cards.forEach((el, i)=>{
-      setTimeout(()=> el.classList.add('flipped'), i*150);
+      setTimeout(()=>{
+        el.classList.add('flipped');
+        flippedCount++;
+        if(flippedCount >= results.length) setTimeout(()=> showResultsSummary(), 550);
+      }, i*120);
     });
-    setTimeout(()=> showResultsSummary(), cards.length*150 + 700);
   }
 
   function showResultsSummary(){
@@ -6421,10 +6441,12 @@ function startGachaReveal(results){
   }
 
   buildCardBacks();
-  skipBtn.onclick = flipAll;
-  stage.onclick = flipAll;
+  skipBtn.onclick = flipRemaining; // now means "flip whatever's left", not "reveal instantly"
   telegraphTimer = setTimeout(fireTelegraph, 750);
-  autoTimer = setTimeout(flipAll, flipDelay);
+  // safety net only — if nobody taps anything for a while (walked away, etc.),
+  // don't leave the screen stuck forever. Well past the point of "watching the
+  // reveal", so it never fires during normal play.
+  autoTimer = setTimeout(flipRemaining, 20000);
 }
 
 document.getElementById('grDone').addEventListener('click', ()=> openGachaHome());
