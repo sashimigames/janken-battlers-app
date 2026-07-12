@@ -2217,7 +2217,7 @@
       </div>
       <div class="resources">
         <div class="res-chip">
-          <span class="ic">⚡</span><span class="val" id="staminaVal">5</span><span class="sub">/5</span>
+          <span class="ic">⚡</span><span class="val" id="staminaVal">5</span><span class="sub" id="staminaMaxSub">/5</span>
         </div>
         <div class="res-chip add" id="coinChip">
           <span class="ic">🪙</span><span class="val" id="coinVal">1200</span>
@@ -3177,6 +3177,7 @@ let playerName = 'プレイヤー';  // shown on the home screen and sent to the
 // ============================================================
 //  STAMINA (consumed by endless runs and story chapters; arcade/online are free)
 // ============================================================
+const DEMO_INFINITE_STAMINA = true; // デモ用: falseに戻せば通常のスタミナ消費に戻る
 const STAMINA_MAX = 5;
 const STAMINA_COST = 1;
 const STAMINA_REGEN_MS = 20 * 60 * 1000; // 1 point every 20 minutes, real-time (accrues even while the app is closed)
@@ -3203,7 +3204,9 @@ function minutesUntilNextStamina(){
 function updateStaminaDisplay(){
   regenStamina();
   const el = document.getElementById('staminaVal');
-  if(el) el.textContent = stamina;
+  if(el) el.textContent = DEMO_INFINITE_STAMINA ? '∞' : stamina;
+  const sub = document.getElementById('staminaMaxSub');
+  if(sub) sub.textContent = DEMO_INFINITE_STAMINA ? '' : `/${STAMINA_MAX}`;
 }
 
 function getCardLevel(id){ return cardLevels[id] || 1; }
@@ -7381,13 +7384,15 @@ document.getElementById('toBattle').addEventListener('click', ()=>{
   if(selectedDeck.length!==3) return;
   if(battleMode==='story' || battleMode==='endless'){
     regenStamina();
-    if(stamina < STAMINA_COST){
+    if(!DEMO_INFINITE_STAMINA && stamina < STAMINA_COST){
       toastMessage(`⚡スタミナが足りません（次の回復まで${minutesUntilNextStamina()}分）`);
       return;
     }
-    stamina -= STAMINA_COST;
-    updateStaminaDisplay();
-    saveState();
+    if(!DEMO_INFINITE_STAMINA){
+      stamina -= STAMINA_COST;
+      updateStaminaDisplay();
+      saveState();
+    }
   }
   if(battleMode==='story') beginStoryChapter();
   else if(battleMode==='endless') beginEndlessRun();
