@@ -2901,6 +2901,8 @@
   <audio id="bgmStory" preload="none" loop src="bgm_story.mp3"></audio>
   <audio id="bgmOnline" preload="none" loop src="bgm_online.mp3"></audio>
   <audio id="bgmRaidBattle" preload="none" loop src="bgm_raid_battle.mp3"></audio>
+  <audio id="bgmRaidBattleAstragal" preload="none" loop src="bgm_raid_battle_astragal.mp3"></audio>
+  <audio id="bgmRaidHome" preload="none" loop src="bgm_raid_home.mp3"></audio>
   <audio id="bgmGachaHome" preload="none" loop src="bgm_gacha_home.mp3"></audio>
 
 </div>
@@ -2956,6 +2958,8 @@ const BGM = {
   story: document.getElementById('bgmStory'),
   online: document.getElementById('bgmOnline'),
   raidBattle: document.getElementById('bgmRaidBattle'),
+  raidBattleAstragal: document.getElementById('bgmRaidBattleAstragal'),
+  raidHome: document.getElementById('bgmRaidHome'),
   gachaHome: document.getElementById('bgmGachaHome'),
   resultWin: document.getElementById('bgmResultWin'),
   resultLose: document.getElementById('bgmResultLose'),
@@ -3088,12 +3092,19 @@ document.addEventListener('visibilitychange', function(){
 const SCREEN_BGM_MAP = {
   home: 'home', arcadeBattle: 'battle', splash: 'title', title: 'title',
   collectionHome: 'collection', storyChapters: 'story', online: 'online',
-  gachaHome: 'gachaHome', raidHome: 'online', raidBattle: 'raidBattle',
+  gachaHome: 'gachaHome', raidHome: 'raidHome',
 };
 let lastResultWon = true; // set right before each go('arcadeResult') call
 function handleScreenAudio(name){
   if(name === 'arcadeResult'){
     playBGM(lastResultWon ? 'resultWin' : 'resultLose');
+    return;
+  }
+  if(name === 'raidBattle'){
+    // ボスごとに専用BGMを持てるように RAID_BOSSES[id].bgmKey を見る。
+    // 未設定のボスは共通の raidBattle トラックにフォールバック。
+    const boss = RAID_BOSSES[raidSelectedBossId];
+    playBGM((boss && boss.bgmKey) || 'raidBattle');
     return;
   }
   const key = SCREEN_BGM_MAP[name];
@@ -3754,6 +3765,7 @@ const RAID_BOSSES = {
     img: 'erebos_raid_visual.jpg',
     badge: '期間限定レイドボス',
     ultVideo: 'ult_erebos.mp4',
+    bgmKey: 'raidBattle',
     ultMoveName: '堕天の福音',
     logAwaken: (diffLabel) => `${diffLabel}のエレボスが目を覚ました…`,
     logPickingHand: 'エレボスが手を選んでいる…',
@@ -3781,6 +3793,7 @@ const RAID_BOSSES = {
     img: 'astragal_raid_visual.jpg',
     badge: '常設レイドボス',
     ultVideo: 'ult_astragal.mp4',
+    bgmKey: 'raidBattleAstragal',
     ultMoveName: '龍の息吹',
     logAwaken: (diffLabel) => `${diffLabel}のアストラガルが咆哮を上げた…`,
     logPickingHand: 'アストラガルが手を選んでいる…',
