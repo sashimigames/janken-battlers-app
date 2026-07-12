@@ -791,6 +791,25 @@
   .raid-reveal-slot .rr-label{ font-size:10px; color:var(--gold); }
 
   .ol-hero-ic{font-size:46px; filter:drop-shadow(0 3px 6px rgba(0,0,0,0.5));}
+  .raid-boss-list{ display:flex; flex-direction:column; gap:9px; width:100%; }
+  .raid-boss-row{
+    position:relative; display:flex; align-items:center; gap:11px;
+    padding:10px 12px; border-radius:13px;
+    background:linear-gradient(120deg, rgba(90,40,110,0.28), rgba(28,20,60,0.28));
+    border:1px solid rgba(230,200,120,0.28);
+    cursor:pointer;
+  }
+  .raid-boss-row:active{ transform:scale(0.98); }
+  .raid-boss-row.locked{ opacity:0.45; filter:grayscale(0.6); cursor:default; }
+  .raid-boss-portrait{
+    flex-shrink:0; width:46px; height:46px; border-radius:9px; object-fit:cover;
+    border:1px solid rgba(230,200,120,0.35);
+  }
+  .raid-boss-row-info{ flex:1; min-width:0; }
+  .raid-boss-row-name{ font-size:12.5px; font-weight:700; color:#fff; }
+  .raid-boss-row-badge{ font-size:9px; color:var(--gold); opacity:0.75; margin-top:1px; }
+  .raid-boss-row-status{ flex-shrink:0; font-size:16px; }
+  .raid-back-to-list{ align-self:flex-start; margin-bottom:6px; }
   .raid-select-visual-wrap{ position:relative; text-align:center; margin-bottom:4px; }
   .raid-select-boss-img{
     width:74%; max-width:210px; aspect-ratio:1/1; object-fit:cover; object-position:50% 22%;
@@ -2419,24 +2438,30 @@
       <div class="ol-title">レイドバトル</div>
     </div>
     <div class="ol-body">
+      <!-- view: boss select -->
+      <div class="raid-view" data-view="bossSelect">
+        <p class="ol-lead">挑むボスを選ぼう</p>
+        <div class="raid-boss-list" id="raidBossList"></div>
+      </div>
       <!-- view: difficulty select -->
       <div class="raid-view" data-view="select">
+        <button class="ol-mini-btn raid-back-to-list" id="raidBackToList">‹ ボス一覧へ</button>
         <div class="raid-select-visual-wrap">
-          <span class="raid-limited-badge">期間限定レイドボス</span><br>
-          <img class="raid-select-boss-img" src="erebos_raid_visual.jpg" alt="堕天使-エレボス">
+          <span class="raid-limited-badge" id="raidSelectBadge"></span><br>
+          <img class="raid-select-boss-img" id="raidSelectBossImg" src="" alt="">
         </div>
-        <p class="ol-lead">堕天使-エレボスに挑戦</p>
+        <p class="ol-lead" id="raidSelectLead"></p>
         <button class="raid-diff-btn diff-easy" data-diff="easy">
           <span class="rdb-name">初級</span>
-          <span class="rdb-sub">推奨カードLv10 ・ 報酬 🪙300</span>
+          <span class="rdb-sub" id="raidSubEasy"></span>
         </button>
         <button class="raid-diff-btn diff-medium" data-diff="medium">
           <span class="rdb-name">中級</span>
-          <span class="rdb-sub">推奨カードLv30 ・ 報酬 🪙500 + カード10%</span>
+          <span class="rdb-sub" id="raidSubMedium"></span>
         </button>
         <button class="raid-diff-btn diff-hard" data-diff="hard">
           <span class="rdb-name">上級</span>
-          <span class="rdb-sub">推奨カードLv50 ・ 報酬 🪙900 + カード50%</span>
+          <span class="rdb-sub" id="raidSubHard"></span>
         </button>
       </div>
       <!-- view: matching -->
@@ -2463,8 +2488,8 @@
   <!-- ============ RAID: BATTLE ============ -->
   <section class="screen" id="raidBattle">
     <div class="raid-boss-wrap">
-      <img class="raid-boss-img" id="raidBossImg" src="erebos_raid_visual.jpg" alt="堕天使-エレボス">
-      <div class="raid-boss-name">堕天使-エレボス</div>
+      <img class="raid-boss-img" id="raidBossImg" src="erebos_raid_visual.jpg" alt="">
+      <div class="raid-boss-name" id="raidBossName">堕天使-エレボス</div>
       <div class="hpbar-wrap raid-boss-hp"><div class="hpbar" id="raidBossHpBar"></div><div class="hptext" id="raidBossHpText"></div></div>
       <div class="raid-boss-ult-row"><span class="rbu-label">必殺</span><div class="ult-gauge-wrap rbu-gauge"><div class="ult-gauge" id="raidBossUltGauge"></div></div></div>
     </div>
@@ -2491,7 +2516,7 @@
       <div class="vs-mark">VS</div>
       <div class="raid-reveal-slot">
         <div class="reveal-hand" id="raidBossReveal"></div>
-        <span class="rr-label">エレボス</span>
+        <span class="rr-label" id="raidBossRevealLabel">エレボス</span>
       </div>
     </div>
     <div class="raid-log" id="raidLog">エレボスの気配を感じる…</div>
@@ -3679,7 +3704,7 @@ const RaidNet = (function(){
     socket.on('raid_opponent_left', handlers.onOpponentLeft);
     socket.on('raid_ult_used', handlers.onUltUsed);
     return {
-      quickMatch(difficulty){ socket.emit('quick_match_raid', {name:playerName, difficulty}); },
+      quickMatch(bossId, difficulty){ socket.emit('quick_match_raid', {name:playerName, bossId, difficulty}); },
       cancelQuick(){ socket.emit('cancel_quick_match_raid'); },
       submitDeck(deck){ socket.emit('submit_raid_deck', {deck}); },
       submitSwap(index){ socket.emit('submit_raid_swap', {index}); },
@@ -3705,6 +3730,7 @@ const RaidNet = (function(){
 let raidNet = null;
 let raidQuickTimer = null;
 let raidDifficulty = 'easy';
+let raidSelectedBossId = null;  // 一覧でタップしたボスID(マッチング〜バトル中もこれを参照する)
 let raidPartnerName = 'あいて';
 let raidDeck = null;        // [{ id, hp, maxHp, atk, winBonus, hand }, x3]
 let raidActiveIdx = 0;
@@ -3714,13 +3740,43 @@ let raidHandLocked = false;
 let raidBossCurHp = 0;   // 必殺技ダメージ計算(現HP割合系)用にクライアント側でも追跡
 
 const RAID_DIFF_LABEL = { easy:'初級', medium:'中級', hard:'上級' };
-// reward table per difficulty — coins are granted immediately, card drop is a
-// single weighted roll against the stated chance, drawing a random card from
-// エレボス専用ドロップ(通常ガチャには出現しない特別枠)。中級10%/上級50%で1枚。
-const RAID_REWARDS = {
-  easy:   { coins: 300, dropChance: 0,    dropCard: null },
-  medium: { coins: 500, dropChance: 0.10, dropCard: 'erebos' },
-  hard:   { coins: 900, dropChance: 0.50, dropCard: 'erebos' },
+
+// レイドボスのレジストリ。新ボスを追加する時はここに1エントリ足すだけ
+// (bossId はサーバー側 RAID_BOSS_REGISTRY のキーと一致させること)。
+// rewards: coins は勝利で即付与、card は難易度ごとの重み付き1回抽選
+// (通常ガチャには出現しない、そのボス専用ドロップ)。
+// locked:true にすると一覧に「Coming Soon」として並ぶだけでタップ不可になる。
+const RAID_BOSSES = {
+  erebos: {
+    id: 'erebos',
+    name: '堕天使-エレボス',
+    img: 'erebos_raid_visual.jpg',
+    badge: '期間限定レイドボス',
+    ultVideo: 'ult_erebos.mp4',
+    ultMoveName: '堕天の福音',
+    logAwaken: (diffLabel) => `${diffLabel}のエレボスが目を覚ました…`,
+    logPickingHand: 'エレボスが手を選んでいる…',
+    logVictory: (name) => `${name}を撃破した！`,
+    logDefeat: (name) => `力及ばず、${name}に敗れた…`,
+    diffSub: {
+      easy:   '推奨カードLv10 ・ 報酬 🪙300',
+      medium: '推奨カードLv30 ・ 報酬 🪙500 + カード10%',
+      hard:   '推奨カードLv50 ・ 報酬 🪙900 + カード50%',
+    },
+    rewards: {
+      easy:   { coins: 300, dropChance: 0,    dropCard: null },
+      medium: { coins: 500, dropChance: 0.10, dropCard: 'erebos' },
+      hard:   { coins: 900, dropChance: 0.50, dropCard: 'erebos' },
+    },
+    locked: false,
+  },
+  // 次のボスはここに追加(素材・数値が決まり次第 locked:false にして解放)。
+  // 例:
+  // nextboss: { id:'nextboss', name:'？？？', img:'', badge:'近日実装',
+  //   ultVideo:'', ultMoveName:'', logAwaken:()=>'', logPickingHand:'',
+  //   logVictory:()=>'', logDefeat:()=>'', diffSub:{easy:'',medium:'',hard:''},
+  //   rewards:{easy:{coins:0,dropChance:0,dropCard:null}, medium:{...}, hard:{...}},
+  //   locked:true },
 };
 
 function raidShowView(name){
@@ -3729,9 +3785,48 @@ function raidShowView(name){
   });
 }
 
+function renderRaidBossList(){
+  const list = document.getElementById('raidBossList');
+  if(!list) return;
+  list.innerHTML = '';
+  Object.values(RAID_BOSSES).forEach(boss=>{
+    const row = document.createElement('div');
+    row.className = 'raid-boss-row' + (boss.locked ? ' locked' : '');
+    row.innerHTML = `
+      <img class="raid-boss-portrait" src="${boss.locked ? '' : boss.img}" alt="">
+      <div class="raid-boss-row-info">
+        <div class="raid-boss-row-name">${boss.locked ? '？？？' : boss.name}</div>
+        <div class="raid-boss-row-badge">${boss.locked ? '近日実装' : (boss.badge || '')}</div>
+      </div>
+      <div class="raid-boss-row-status">${boss.locked ? '🔒' : '▶'}</div>`;
+    if(!boss.locked){
+      row.addEventListener('click', ()=> selectRaidBoss(boss.id));
+    } else {
+      row.addEventListener('click', ()=> toastMessage('近日実装予定です'));
+    }
+    list.appendChild(row);
+  });
+}
+
+function selectRaidBoss(bossId){
+  const boss = RAID_BOSSES[bossId];
+  if(!boss || boss.locked) return;
+  raidSelectedBossId = bossId;
+  playSE('tap');
+  document.getElementById('raidSelectBadge').textContent = boss.badge || '';
+  document.getElementById('raidSelectBossImg').src = boss.img;
+  document.getElementById('raidSelectBossImg').alt = boss.name;
+  document.getElementById('raidSelectLead').textContent = `${boss.name}に挑戦`;
+  document.getElementById('raidSubEasy').textContent = boss.diffSub.easy;
+  document.getElementById('raidSubMedium').textContent = boss.diffSub.medium;
+  document.getElementById('raidSubHard').textContent = boss.diffSub.hard;
+  raidShowView('select');
+}
+
 function openRaidHome(){
   go('raidHome');
-  raidShowView('select');
+  renderRaidBossList();
+  raidShowView('bossSelect');
   raidNet = RaidNet.connect(raidNetHandlers);
 }
 
@@ -3754,6 +3849,7 @@ const raidNetHandlers = {
   },
   onDeckSelectStart(d){
     clearInterval(raidQuickTimer);
+    raidSelectedBossId = d.bossId || raidSelectedBossId || 'erebos';
     raidDifficulty = d.difficulty || 'easy';
     raidPartnerName = (d.players[1] && d.players[1].name) || 'あいて';
     document.getElementById('raidPartnerName').textContent = raidPartnerName;
@@ -3765,6 +3861,8 @@ const raidNetHandlers = {
     setTimeout(()=> raidNet.submitDeck(raidDeck), 900);
   },
   onBattleStart(d){
+    raidSelectedBossId = d.bossId || raidSelectedBossId || 'erebos';
+    const boss = RAID_BOSSES[raidSelectedBossId];
     raidDeck = d.yourDeck;
     raidDeck.forEach(c=>{ if(c.ultGauge==null) c.ultGauge = 0; });
     raidActiveIdx = 0;
@@ -3776,8 +3874,12 @@ const raidNetHandlers = {
       myHp:raidDeck[0].hp, myMaxHp:raidDeck[0].maxHp,
       partnerHp:d.opponentDeck[0].hp, partnerMaxHp:d.opponentDeck[0].maxHp,
     });
-    document.getElementById('raidLog').textContent = `${RAID_DIFF_LABEL[raidDifficulty]}のエレボスが目を覚ました…`;
-    document.getElementById('raidBossImg').src = 'erebos_raid_visual.jpg';
+    document.getElementById('raidLog').textContent = boss.logAwaken(RAID_DIFF_LABEL[raidDifficulty]);
+    document.getElementById('raidBossImg').src = boss.img;
+    document.getElementById('raidBossImg').alt = boss.name;
+    document.getElementById('raidBossName').textContent = boss.name;
+    document.getElementById('raidBossRevealLabel').textContent = boss.name;
+    document.getElementById('raidUltWarning').textContent = `⚠️ 次のターン、${boss.name}が必殺技を放つ！`;
     document.getElementById('raidRevealRow').classList.remove('show');
     document.getElementById('raidUltWarning').classList.remove('show');
     updateRaidBossUltGauge(0, false);
@@ -3807,7 +3909,7 @@ const raidNetHandlers = {
     // 両者が出を決めた瞬間に即結果を出さず、5秒の「ボスが手を出す」演出を挟んでから反映する
     clearRaidTurnTimer();
     raidHandLocked = true;
-    document.getElementById('raidLog').textContent = 'エレボスが手を選んでいる…';
+    document.getElementById('raidLog').textContent = RAID_BOSSES[raidSelectedBossId].logPickingHand;
     document.getElementById('raidRevealRow').classList.remove('show');
     document.getElementById('raidMyReveal').textContent = '';
     document.getElementById('raidBossReveal').textContent = '';
@@ -3872,9 +3974,10 @@ function raidRevealResult(d){
     else if(d.you.outcome==='draw') activeCard.ultGauge = Math.min(100, (activeCard.ultGauge||0) + 15);
   }
 
+  const boss = RAID_BOSSES[raidSelectedBossId];
   const continueTurn = ()=>{
     if(d.ultimate){
-      logParts.push('💥 エレボスの必殺技「堕天の福音」！ 全員に大ダメージ');
+      logParts.push(`💥 ${boss.name}の必殺技「${boss.ultMoveName}」！ 全員に大ダメージ`);
       if(d.ultimate.you) raidDeck[d.ultimate.you.cardIdx].hp = d.ultimate.you.hpAfter;
     }
     if(d.yourAutoSwap!=null){
@@ -3913,7 +4016,7 @@ function raidRevealResult(d){
   // if there's no video file yet (missing/still being generated).
   if(d.ultimate){
     playSE('rarityLSR');
-    playUltimateVideo('ult_erebos.mp4', continueTurn, 'raidUltOverlay', 'raidUltVideo');
+    playUltimateVideo(boss.ultVideo, continueTurn, 'raidUltOverlay', 'raidUltVideo');
   } else {
     continueTurn();
   }
@@ -4040,7 +4143,7 @@ function submitRaidHand(hand){
 // card-drop roll for medium/hard. Loss grants nothing (matches arcade/story
 // convention of no consolation reward on defeat).
 function grantRaidReward(){
-  const reward = RAID_REWARDS[raidDifficulty];
+  const reward = RAID_BOSSES[raidSelectedBossId].rewards[raidDifficulty];
   playerCoins += reward.coins;
   playSE('coin');
   updateCoinDisplay();
@@ -4054,26 +4157,36 @@ function grantRaidReward(){
 }
 
 function showRaidResult(won){
+  const boss = RAID_BOSSES[raidSelectedBossId];
   const big = document.getElementById('raidResultBig');
   const sub = document.getElementById('raidResultSub');
   if(won){
     const { coins, droppedCardName } = grantRaidReward();
     big.textContent = 'VICTORY';
     big.className = 'result-big victory';
-    sub.innerHTML = `エレボスを撃破した！<br>🪙${coins} 獲得` + (droppedCardName ? `<br>✨ ${droppedCardName} を手に入れた！` : '');
+    sub.innerHTML = `${boss.logVictory(boss.name)}<br>🪙${coins} 獲得` + (droppedCardName ? `<br>✨ ${droppedCardName} を手に入れた！` : '');
     playSE('victoryStinger');
   } else {
     big.textContent = 'DEFEAT';
     big.className = 'result-big defeat';
-    sub.innerHTML = '力及ばず、エレボスに敗れた…';
+    sub.innerHTML = boss.logDefeat(boss.name);
   }
   go('raidResult');
 }
 
 document.getElementById('raidHomeBack').addEventListener('click', ()=>{
+  const inDiffSelect = document.querySelector('#raidHome .raid-view[data-view="select"]').classList.contains('active');
+  if(inDiffSelect){
+    raidShowView('bossSelect');
+    return;
+  }
   if(raidNet) raidNet.leave();
   clearInterval(raidQuickTimer);
   go('home');
+});
+document.getElementById('raidBackToList').addEventListener('click', ()=>{
+  playSE('tap');
+  raidShowView('bossSelect');
 });
 document.getElementById('raidCancelMatch').addEventListener('click', ()=>{
   if(raidNet) raidNet.cancelQuick();
@@ -4082,7 +4195,7 @@ document.getElementById('raidCancelMatch').addEventListener('click', ()=>{
 document.querySelectorAll('.raid-diff-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     playSE('tap');
-    raidNet.quickMatch(btn.dataset.diff);
+    raidNet.quickMatch(raidSelectedBossId, btn.dataset.diff);
   });
 });
 document.querySelectorAll('#raidBattle .hand-btn').forEach(btn=>{
