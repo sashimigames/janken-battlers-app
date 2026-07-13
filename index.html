@@ -314,6 +314,7 @@
     display:flex; align-items:center; justify-content:center;
   }
   .pause-btn-icon:active{ background:rgba(0,0,0,0.6); }
+  .raid-pause-btn{ position:absolute; top:10px; left:10px; z-index:15; }
 
   /* ===== endless tower: current-floor badge, hidden outside endless mode ===== */
   .floor-badge{
@@ -868,6 +869,22 @@
     outline:none;
   }
   .code-cell:focus{border-color:var(--gold-bright); box-shadow:0 0 10px rgba(244,221,156,0.5);}
+
+  /* raid: quick-match vs room-code mode tabs */
+  .raid-match-mode-row{
+    display:flex; gap:8px; width:100%; margin:2px 0 4px;
+  }
+  .raid-mode-tab{
+    flex:1; padding:8px 6px; border-radius:12px; text-align:center;
+    background:rgba(0,0,0,0.3); border:1px solid rgba(230,200,120,0.25);
+    color:var(--gold); font-size:11.5px; font-family:"Shippori Mincho",serif; cursor:pointer;
+  }
+  .raid-mode-tab.active{
+    background:linear-gradient(160deg,var(--gold-bright),var(--bronze));
+    color:var(--ink); border-color:transparent; font-weight:700;
+  }
+  .raid-join-code-link{ margin-top:6px; }
+  .raid-join-code-link.hidden{ display:none; }
 
   /* spinner */
   .ol-spinner{
@@ -2457,6 +2474,10 @@
           <img class="raid-select-boss-img" id="raidSelectBossImg" src="" alt="">
         </div>
         <p class="ol-lead" id="raidSelectLead"></p>
+        <div class="raid-match-mode-row">
+          <button class="raid-mode-tab active" data-mode="quick">⚡ クイックマッチ</button>
+          <button class="raid-mode-tab" data-mode="room">🔑 コードで対戦</button>
+        </div>
         <button class="raid-diff-btn diff-easy" data-diff="easy">
           <span class="rdb-name">初級</span>
           <span class="rdb-sub" id="raidSubEasy"></span>
@@ -2469,6 +2490,28 @@
           <span class="rdb-name">上級</span>
           <span class="rdb-sub" id="raidSubHard"></span>
         </button>
+        <button class="ol-mini-btn raid-join-code-link hidden" id="raidJoinCodeLink">コードを持ってる（参加する）</button>
+      </div>
+      <!-- view: room create / waiting for partner -->
+      <div class="raid-view" data-view="roomWaiting">
+        <p class="ol-lead">この部屋コードを相棒に伝えよう</p>
+        <div class="room-code" id="raidRoomCodeBig">----</div>
+        <button class="ol-mini-btn" id="raidCopyCode">コードをコピー</button>
+        <div class="ol-spinner"></div>
+        <p class="ol-status">相棒の参加を待っています…</p>
+        <button class="ol-mini-btn" id="raidCancelRoomWaiting">キャンセル</button>
+      </div>
+      <!-- view: room join (enter code) -->
+      <div class="raid-view" data-view="roomJoin">
+        <p class="ol-lead">部屋コードを入力</p>
+        <div class="code-inputs" id="raidCodeInputs">
+          <input class="code-cell raid-code-cell" maxlength="1" inputmode="numeric" data-i="0">
+          <input class="code-cell raid-code-cell" maxlength="1" inputmode="numeric" data-i="1">
+          <input class="code-cell raid-code-cell" maxlength="1" inputmode="numeric" data-i="2">
+          <input class="code-cell raid-code-cell" maxlength="1" inputmode="numeric" data-i="3">
+        </div>
+        <p class="ol-error" id="raidJoinError"></p>
+        <button class="ol-btn primary" id="raidJoinSubmit">参加する</button>
       </div>
       <!-- view: matching -->
       <div class="raid-view" data-view="matching">
@@ -2493,6 +2536,7 @@
 
   <!-- ============ RAID: BATTLE ============ -->
   <section class="screen" id="raidBattle">
+    <button class="pause-btn-icon raid-pause-btn" id="raidPauseBtn" aria-label="一時停止">⏸</button>
     <div class="raid-boss-wrap">
       <img class="raid-boss-img" id="raidBossImg" src="erebos_raid_visual.jpg" alt="">
       <div class="raid-boss-name" id="raidBossName">堕天使-エレボス</div>
@@ -3679,6 +3723,16 @@ const RaidNet = (function(){
         }, 1800);
       },
       cancelQuick(){ clearAll(); },
+      createRoom(bossId, difficulty){
+        later(()=> handlers.onRoomCreated({roomId:String(1000+Math.floor(Math.random()*9000)), bossId, difficulty}), 200);
+      },
+      joinRoom(code){
+        later(()=>{
+          if(!/^\d{4}$/.test(code)){ handlers.onJoinError({reason:'ROOM_NOT_FOUND'}); return; }
+          mockBossHp = 300; mockTurn = 0;
+          handlers.onDeckSelectStart({bossId:'erebos', difficulty:'easy', players:[{name:'あなた'},{name:'CPUホスト'}]});
+        }, 400);
+      },
       submitDeck(deck){
         later(()=> handlers.onBattleStart({
           yourDeck: deck, opponentDeck: deck.map(c=>({...c})),
@@ -3719,10 +3773,15 @@ const RaidNet = (function(){
     socket.on('raid_turn_result', handlers.onTurnResult);
     socket.on('raid_opponent_swap', handlers.onOpponentSwap);
     socket.on('raid_opponent_left', handlers.onOpponentLeft);
+    socket.on('raid_partner_cpu_takeover', handlers.onPartnerCpuTakeover);
     socket.on('raid_ult_used', handlers.onUltUsed);
+    socket.on('raid_room_created', handlers.onRoomCreated);
+    socket.on('raid_join_error', handlers.onJoinError);
     return {
       quickMatch(bossId, difficulty){ socket.emit('quick_match_raid', {name:playerName, bossId, difficulty}); },
       cancelQuick(){ socket.emit('cancel_quick_match_raid'); },
+      createRoom(bossId, difficulty){ socket.emit('create_raid_room', {name:playerName, bossId, difficulty}); },
+      joinRoom(code){ socket.emit('join_raid_room', {code, name:playerName}); },
       submitDeck(deck){ socket.emit('submit_raid_deck', {deck}); },
       submitSwap(index){ socket.emit('submit_raid_swap', {index}); },
       submitHand(hand){ socket.emit('submit_raid_hand', {hand}); },
@@ -3754,6 +3813,7 @@ let raidActiveIdx = 0;
 let raidOpponentActiveIdx = 0;
 let raidTurnTimer = null;
 let raidHandLocked = false;
+let raidPaused = false;
 let raidBossCurHp = 0;   // 必殺技ダメージ計算(現HP割合系)用にクライアント側でも追跡
 
 const RAID_DIFF_LABEL = { easy:'初級', medium:'中級', hard:'上級' };
@@ -3885,6 +3945,14 @@ function buildRaidDeck(){
 }
 
 const raidNetHandlers = {
+  onRoomCreated(d){
+    document.getElementById('raidRoomCodeBig').textContent = d.roomId;
+    raidShowView('roomWaiting');
+  },
+  onJoinError(d){
+    const map = {ROOM_NOT_FOUND:'その部屋コードは見つかりません', ROOM_FULL:'その部屋は満員です', ALREADY_STARTED:'その対戦はすでに始まっています'};
+    document.getElementById('raidJoinError').textContent = map[d.reason] || '参加に失敗しました';
+  },
   onQuickWaiting(){
     raidShowView('matching');
     let sec = 0;
@@ -3909,6 +3977,7 @@ const raidNetHandlers = {
   onBattleStart(d){
     raidSelectedBossId = d.bossId || raidSelectedBossId || 'erebos';
     const boss = RAID_BOSSES[raidSelectedBossId];
+    raidPaused = false;
     raidDeck = d.yourDeck;
     raidDeck.forEach(c=>{ if(c.ultGauge==null) c.ultGauge = 0; });
     raidActiveIdx = 0;
@@ -3965,6 +4034,12 @@ const raidNetHandlers = {
     clearRaidTurnTimer();
     toastMessage('相棒が退室しました');
     go('home');
+  },
+  onPartnerCpuTakeover(d){
+    // 戦闘中に相方が抜けた: 部屋は継続、CPUがその場のカードを引き継いで戦う
+    const label = document.getElementById('raidPartnerLabel');
+    if(label) label.textContent = `${d && d.name ? d.name : raidPartnerName}（CPU）`;
+    toastMessage('相棒が退室したので、CPUが代わりに戦います');
   },
 };
 
@@ -4084,7 +4159,7 @@ function renderRaidPartyBar(){
 }
 
 function tryRaidSwitch(i){
-  if(raidHandLocked) return; // same rule as normal battle: only free to swap while still picking a hand
+  if(raidHandLocked || raidPaused) return; // same rule as normal battle: only free to swap while still picking a hand
   if(i === raidActiveIdx) return;
   if(raidDeck[i].hp <= 0){ toastMessage('倒れたモンスターは出せない'); return; }
   raidActiveIdx = i;
@@ -4156,7 +4231,7 @@ function updateRaidBossUltGauge(pct, ready){
 }
 
 document.getElementById('raidUltBtn').addEventListener('click', ()=>{
-  if(!raidDeck || !raidNet) return;
+  if(!raidDeck || !raidNet || raidPaused) return;
   const card = raidDeck[raidActiveIdx];
   if(!CARDS[card.id] || !canUseUltimate(CARDS[card.id])) return;
   if((card.ultGauge||0) < 100 || card.hp <= 0) return;
@@ -4177,7 +4252,7 @@ document.getElementById('raidUltBtn').addEventListener('click', ()=>{
 });
 
 function submitRaidHand(hand){
-  if(raidHandLocked) return;
+  if(raidHandLocked || raidPaused) return;
   if(raidDeck[raidActiveIdx].hp <= 0) return; // shouldn't happen (auto-swap keeps active alive) but guard anyway
   raidHandLocked = true;
   playSE('tap');
@@ -4221,9 +4296,15 @@ function showRaidResult(won){
 }
 
 document.getElementById('raidHomeBack').addEventListener('click', ()=>{
-  const inDiffSelect = document.querySelector('#raidHome .raid-view[data-view="select"]').classList.contains('active');
-  if(inDiffSelect){
+  const activeView = document.querySelector('#raidHome .raid-view.active');
+  const viewName = activeView && activeView.dataset.view;
+  if(viewName === 'select'){
     raidShowView('bossSelect');
+    return;
+  }
+  if(viewName === 'roomWaiting' || viewName === 'roomJoin'){
+    if(raidNet) raidNet.leave(); // 作成済みの部屋があれば破棄。まだなら無害
+    raidShowView('select');
     return;
   }
   if(raidNet) raidNet.leave();
@@ -4238,12 +4319,62 @@ document.getElementById('raidCancelMatch').addEventListener('click', ()=>{
   if(raidNet) raidNet.cancelQuick();
   raidShowView('select');
 });
+
+// ---- レイド: クイックマッチ／コードで対戦の切り替え ----
+let raidMatchMode = 'quick'; // 'quick' | 'room'
+document.querySelectorAll('.raid-mode-tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    playSE('tap');
+    raidMatchMode = tab.dataset.mode;
+    document.querySelectorAll('.raid-mode-tab').forEach(t=> t.classList.toggle('active', t===tab));
+    document.getElementById('raidJoinCodeLink').classList.toggle('hidden', raidMatchMode !== 'room');
+  });
+});
 document.querySelectorAll('.raid-diff-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     playSE('tap');
-    raidNet.quickMatch(raidSelectedBossId, btn.dataset.diff);
+    if(raidMatchMode === 'room'){
+      raidNet.createRoom(raidSelectedBossId, btn.dataset.diff);
+    } else {
+      raidNet.quickMatch(raidSelectedBossId, btn.dataset.diff);
+    }
   });
 });
+
+// ---- レイド: 部屋コードを作る／参加する ----
+document.getElementById('raidJoinCodeLink').addEventListener('click', ()=>{
+  playSE('tap');
+  document.getElementById('raidJoinError').textContent = '';
+  raidClearCodeCells();
+  raidShowView('roomJoin');
+  setTimeout(()=>{ const c0 = document.querySelector('.raid-code-cell[data-i="0"]'); if(c0) c0.focus(); }, 200);
+});
+document.getElementById('raidCancelRoomWaiting').addEventListener('click', ()=>{
+  if(raidNet) raidNet.leave();
+  raidShowView('select');
+});
+const raidCodeCells = Array.from(document.querySelectorAll('.raid-code-cell'));
+function raidClearCodeCells(){ raidCodeCells.forEach(c=>c.value=''); }
+function raidReadCode(){ return raidCodeCells.map(c=>c.value).join(''); }
+raidCodeCells.forEach((cell, i)=>{
+  cell.addEventListener('input', ()=>{
+    cell.value = cell.value.replace(/\D/g,'').slice(0,1);
+    if(cell.value && i<raidCodeCells.length-1) raidCodeCells[i+1].focus();
+  });
+  cell.addEventListener('keydown', (e)=>{
+    if(e.key==='Backspace' && !cell.value && i>0) raidCodeCells[i-1].focus();
+  });
+});
+document.getElementById('raidJoinSubmit').addEventListener('click', ()=>{
+  const code = raidReadCode();
+  if(code.length<4){ document.getElementById('raidJoinError').textContent='4桁すべて入力してください'; return; }
+  raidNet.joinRoom(code);
+});
+document.getElementById('raidCopyCode').addEventListener('click', ()=>{
+  const code = document.getElementById('raidRoomCodeBig').textContent;
+  if(navigator.clipboard) navigator.clipboard.writeText(code).then(()=> toastMessage('コードをコピーしました')).catch(()=>{});
+});
+
 document.querySelectorAll('#raidBattle .hand-btn').forEach(btn=>{
   btn.addEventListener('click', ()=> submitRaidHand(btn.dataset.hand));
 });
@@ -4375,7 +4506,7 @@ document.querySelectorAll('#online [data-act]').forEach(btn=>{
 });
 
 /* ---- code input cells: auto-advance ---- */
-const codeCells = Array.from(document.querySelectorAll('.code-cell'));
+const codeCells = Array.from(document.querySelectorAll('#codeInputs .code-cell'));
 function clearCodeCells(){ codeCells.forEach(c=>c.value=''); }
 function readCode(){ return codeCells.map(c=>c.value).join(''); }
 codeCells.forEach((cell, i)=>{
@@ -7034,13 +7165,28 @@ function endStoryBattle(won){
 // ============================================================
 //  PAUSE (一時停止・エンドレスタワーの途中離脱)
 // ============================================================
+// ポーズモーダル(#pauseOverlay)は元々アーケード/ストーリー/エンドレス/オンライン用の
+// Gオブジェクト前提だったが、レイドバトルは別系統の状態(raidHandLocked等)を使うため、
+// pauseContext で「今どっちの文脈でモーダルを開いているか」を切り替えて同じモーダルを流用する。
+let pauseContext = 'arcade'; // 'arcade' | 'raid'
+
 function pauseGame(){
   if(!G) return;
   if(G.locked){ toastMessage('勝負の最中は一時停止できません'); return; }
   if(G.paused) return;
+  pauseContext = 'arcade';
   G.paused = true;
   clearInterval(G.timer);
   setHandButtons(false);
+  renderPauseOverlay();
+  document.getElementById('pauseOverlay').classList.add('open');
+}
+
+function pauseRaidGame(){
+  if(raidHandLocked){ toastMessage('勝負の最中は一時停止できません'); return; }
+  pauseContext = 'raid';
+  raidPaused = true;
+  clearRaidTurnTimer();
   renderPauseOverlay();
   document.getElementById('pauseOverlay').classList.add('open');
 }
@@ -7050,7 +7196,11 @@ function renderPauseOverlay(){
   document.getElementById('pauseConfirm').classList.add('hidden');
   const stats = document.getElementById('pauseStats');
   const quitBtn = document.getElementById('pauseQuitBtn');
-  if(battleMode === 'endless'){
+  if(pauseContext === 'raid'){
+    const boss = RAID_BOSSES[raidSelectedBossId];
+    stats.innerHTML = `${boss ? boss.name : 'ボス'} と交戦中（${RAID_DIFF_LABEL[raidDifficulty] || ''}）<br>ボスHP: ${Math.max(0, Math.round(raidBossCurHp))}`;
+    quitBtn.textContent = 'レイドを諦めてホームへ';
+  } else if(battleMode === 'endless'){
     const boss = isBossFloor(ENDLESS.floor);
     stats.innerHTML = (boss ? `⚔ 第${ENDLESS.floor}階（ボス）に挑戦中<br>` : `第${ENDLESS.floor}階に挑戦中<br>`)
       + `この挑戦の獲得：🪙${ENDLESS.earned} ・ EXP${ENDLESS.earnedExp}`;
@@ -7070,6 +7220,11 @@ function renderPauseOverlay(){
 
 function resumeGame(){
   document.getElementById('pauseOverlay').classList.remove('open');
+  if(pauseContext === 'raid'){
+    raidPaused = false;
+    raidStartTurnTimer(); // 残り時間の厳密な保持はせず、再開時に新しく10秒渡す
+    return;
+  }
   if(!G) return;
   G.paused = false;
   setHandButtons(true);
@@ -7077,6 +7232,7 @@ function resumeGame(){
 }
 
 document.getElementById('pauseBtn').addEventListener('click', pauseGame);
+document.getElementById('raidPauseBtn').addEventListener('click', pauseRaidGame);
 document.getElementById('pauseResumeBtn').addEventListener('click', resumeGame);
 
 // ============================================================
@@ -7121,7 +7277,9 @@ document.getElementById('nameEditSave').addEventListener('click', ()=>{
 document.getElementById('pauseQuitBtn').addEventListener('click', ()=>{
   document.getElementById('pauseMain').classList.add('hidden');
   document.getElementById('pauseConfirm').classList.remove('hidden');
-  const msg = battleMode === 'endless'
+  const msg = pauseContext === 'raid'
+    ? '相棒にも通知されます（CPUが引き継いで戦い続けます）。レイドを諦めてホームへ戻りますか？（このレイドの報酬は得られません）'
+    : battleMode === 'endless'
     ? `ここまでの報酬（🪙${ENDLESS.earned} ・ EXP${ENDLESS.earnedExp}）はすでに確定しています。<br>第${ENDLESS.floor}階の途中でタワーを降りますか？`
     : battleMode === 'online'
       ? `${onlineOpponentName} との対戦を放棄します。相手にも通知されます。よろしいですか？`
@@ -7133,6 +7291,12 @@ document.getElementById('pauseConfirmNo').addEventListener('click', renderPauseO
 
 document.getElementById('pauseConfirmYes').addEventListener('click', ()=>{
   document.getElementById('pauseOverlay').classList.remove('open');
+  if(pauseContext === 'raid'){
+    clearRaidTurnTimer();
+    if(raidNet){ raidNet.leave(); raidNet = null; }
+    goHomeReset();
+    return;
+  }
   if(!G) return;
   clearInterval(G.timer);
   G.paused = false;
