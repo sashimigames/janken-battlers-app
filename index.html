@@ -2131,6 +2131,15 @@
   .t-homurabi{--c-light:#ffb8c4; --c-mid:#d8264a; --c-deep:#3a0a16;}
   .t-leviaking{--c-light:#9ab8e8; --c-mid:#3050a0; --c-deep:#0c1830;}
   .t-erebos{--c-light:#d8c8f0; --c-mid:#7a4aa8; --c-deep:#180c28;}
+  /* 常闇の侵蝕パック: 属性ごとの侵蝕カラーテーマ */
+  .t-sf-yami{--c-light:#B79AD6; --c-mid:#5B2C82; --c-deep:#1C0E2E;}
+  .t-sf-honoo{--c-light:#C98FA8; --c-mid:#7A2A4A; --c-deep:#240D18;}
+  .t-sf-kori{--c-light:#A9C3D9; --c-mid:#3E5E78; --c-deep:#12202C;}
+  .t-sf-kaminari{--c-light:#C3A9D9; --c-mid:#5A3E78; --c-deep:#1C122C;}
+  .t-sf-kusa{--c-light:#A9C99E; --c-mid:#3E5E36; --c-deep:#12200E;}
+  .t-sf-tsuchi{--c-light:#C0AF9A; --c-mid:#5A4632; --c-deep:#1C160E;}
+  .t-sf-mizu{--c-light:#9AB4C9; --c-mid:#2E4E6E; --c-deep:#0E1826;}
+  .t-sf-hikari{--c-light:#D6CE9A; --c-mid:#7A6E2C; --c-deep:#241F0E;}
   .t-astragal{--c-light:#ffd9a0; --c-mid:#d8541c; --c-deep:#3a1408;}
 
   .fade-flash{
@@ -3909,7 +3918,7 @@ const RaidNet = (function(){
       submitDeck(deck){ socket.emit('submit_raid_deck', {deck}); },
       submitSwap(index){ socket.emit('submit_raid_swap', {index}); },
       submitHand(hand){ socket.emit('submit_raid_hand', {hand}); },
-      useUlt(damage, moveName){ socket.emit('use_raid_ult', {damage, moveName}); },
+      useUlt(damage, moveName, poison, tempAtkDebuff){ socket.emit('use_raid_ult', {damage, moveName, poison, tempAtkDebuff}); },
       reportEnd(){ socket.emit('report_raid_end'); },
       leave(){ socket.emit('leave_raid_room'); socket.disconnect(); },
     };
@@ -4144,7 +4153,10 @@ const raidNetHandlers = {
       raidOpponentDeck[raidOpponentActiveIdx].ultGauge = 0;
       updateRaidPartnerUI();
     }
-    document.getElementById('raidLog').textContent = `💥 ${who}の必殺技「${d.moveName}」！ ボスに${d.damage}ダメージ！`;
+    let msg = `💥 ${who}の必殺技「${d.moveName}」！ ボスに${d.damage}ダメージ！`;
+    if(d.poison) msg += `（侵食付与：毎ターン${d.poison.dmg}×${d.poison.turns}ターン）`;
+    if(d.tempAtkDebuff) msg += `（ボスのATK-${d.tempAtkDebuff.amount}：${d.tempAtkDebuff.turns}ターン）`;
+    document.getElementById('raidLog').textContent = msg;
     playSE('rarityLSR');
     if(d.bossDefeated){
       clearRaidTurnTimer();
@@ -4236,6 +4248,7 @@ function raidRevealResult(d){
     if(d.opponent.outcome==='win') logParts.push(`${partnerLabel}の勝ち！`);
     else if(d.opponent.outcome==='lose') logParts.push(`${partnerLabel}が被弾`);
   }
+  if(d.bossPoisonTick) logParts.push(`ボスは侵食で${d.bossPoisonTick}ダメージ`);
 
   // 必殺ゲージ加算(通常バトルと同じ: 勝ち+20/得意手勝ち+30/あいこ+15、SR/LSRのみ)
   const activeCard = raidDeck[d.you.cardIdx];
@@ -4426,7 +4439,7 @@ document.getElementById('raidUltBtn').addEventListener('click', ()=>{
   // 通常バトルと同じ必殺技効果計算を流用(ボスを擬似的な相手として渡す)
   const pseudoMon = { ...CARDS[card.id], atk: card.atk, curHp: card.hp, maxHp: card.maxHp };
   const eff = getUltimateEffect(pseudoMon, { curHp: raidBossCurHp });
-  const send = ()=> raidNet.useUlt(eff.damage, eff.moveName);
+  const send = ()=> raidNet.useUlt(eff.damage, eff.moveName, eff.poison, eff.tempAtkDebuff);
   const clip = ULT_VIDEO_MAP[card.id];
   if(clip){
     playSE('rarityLSR');
@@ -5498,8 +5511,316 @@ const CARDS = {
            effects:[
              '<span class="killshot">必殺技「龍の息吹」</span>：<b>35〜500のランダムダメージ</b>。'
            ] },
+  // ============ 「常闇の侵蝕」パック 30枚 ============
+  kuro_slime: { id:'kuro_slime', name:'蝕スライム-クロ', attr:'闇冥', theme:'t-sf-yami', rarity:'n', num:'SF-N01',
+           hand:'rock', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_kuro_slime_portrait.webp', cardImg:'card_kuro_slime_full.webp', pixelImg:'card_kuro_slime_sprite.webp',
+           flavor:'闇に浸された泥の残滓。触れれば冷たく、しかし妙に懐かしい。',
+           colors:{light:'#B79AD6', mid:'#5B2C82', deep:'#1C0E2E', barLight:'#4A2270', barDeep:'#150A20',
+                    accent:'#D9C4F0', nameColor:'#F0E6FA', gem:'#8C4FC9', tagFg:'#E6D6F5'},
+           effects:[
+             '<b>グーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>グーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  murasaki_slime: { id:'murasaki_slime', name:'蝕スライム-ムラサキ', attr:'闇冥', theme:'t-sf-yami', rarity:'n', num:'SF-N02',
+           hand:'paper', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_murasaki_slime_portrait.webp', cardImg:'card_murasaki_slime_full.webp', pixelImg:'card_murasaki_slime_sprite.webp',
+           flavor:'紫に濁ったスライムは、夜になると静かに歌うという。',
+           colors:{light:'#B79AD6', mid:'#5B2C82', deep:'#1C0E2E', barLight:'#4A2270', barDeep:'#150A20',
+                    accent:'#D9C4F0', nameColor:'#F0E6FA', gem:'#8C4FC9', tagFg:'#E6D6F5'},
+           effects:[
+             '<b>パーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>パーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  yoru_slime: { id:'yoru_slime', name:'蝕スライム-ヨル', attr:'闇冥', theme:'t-sf-yami', rarity:'n', num:'SF-N03',
+           hand:'scissors', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_yoru_slime_portrait.webp', cardImg:'card_yoru_slime_full.webp', pixelImg:'card_yoru_slime_sprite.webp',
+           flavor:'体の中に星が瞬いている。夜空の欠片を飲み込んだのかもしれない。',
+           colors:{light:'#B79AD6', mid:'#5B2C82', deep:'#1C0E2E', barLight:'#4A2270', barDeep:'#150A20',
+                    accent:'#D9C4F0', nameColor:'#F0E6FA', gem:'#8C4FC9', tagFg:'#E6D6F5'},
+           effects:[
+             '<b>チョキで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>チョキで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  susu: { id:'susu', name:'濁焔鼠-スス', attr:'炎', theme:'t-sf-honoo', rarity:'n', num:'SF-N04',
+           hand:'rock', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_susu_portrait.webp', cardImg:'card_susu_full.webp', pixelImg:'card_susu_sprite.webp',
+           flavor:'灰まみれの毛並みで走り回る。その傷跡は、まだ癒えていない。',
+           colors:{light:'#C98FA8', mid:'#7A2A4A', deep:'#240D18', barLight:'#5C1F38', barDeep:'#180810',
+                    accent:'#E8B8CC', nameColor:'#F7E4EC', gem:'#A83A63', tagFg:'#F0CCDA'},
+           effects:[
+             '<b>グーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>グーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  shimo: { id:'shimo', name:'凍蝕蟹-シモ', attr:'氷', theme:'t-sf-kori', rarity:'n', num:'SF-N05',
+           hand:'scissors', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_shimo_portrait.webp', cardImg:'card_shimo_full.webp', pixelImg:'card_shimo_sprite.webp',
+           flavor:'濁った氷の甲羅は、触れた者の温もりごと奪っていく。',
+           colors:{light:'#A9C3D9', mid:'#3E5E78', deep:'#12202C', barLight:'#2E4A60', barDeep:'#0D1820',
+                    accent:'#C7DCE9', nameColor:'#EAF2F7', gem:'#4C7794', tagFg:'#D6E6EF'},
+           effects:[
+             '<b>チョキで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>チョキで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  yamibiri: { id:'yamibiri', name:'黒雷蝙蝠-ヤミビリ', attr:'雷', theme:'t-sf-kaminari', rarity:'n', num:'SF-N06',
+           hand:'paper', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_yamibiri_portrait.webp', cardImg:'card_yamibiri_full.webp', pixelImg:'card_yamibiri_sprite.webp',
+           flavor:'闇の中で紫電を纏い飛ぶ。その笑い声は雷鳴によく似ている。',
+           colors:{light:'#C3A9D9', mid:'#5A3E78', deep:'#1C122C', barLight:'#472E60', barDeep:'#140D20',
+                    accent:'#DCC7E9', nameColor:'#F2EAF7', gem:'#7A4C94', tagFg:'#E6D6EF'},
+           effects:[
+             '<b>パーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>パーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  kareha_vine: { id:'kareha_vine', name:'枯蔦人-カレハ', attr:'草', theme:'t-sf-kusa', rarity:'n', num:'SF-N07',
+           hand:'rock', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_kareha_vine_portrait.webp', cardImg:'card_kareha_vine_full.webp', pixelImg:'card_kareha_vine_sprite.webp',
+           flavor:'かつて緑だった蔦は、今は枯れ落ちる寸前で立ち止まっている。',
+           colors:{light:'#A9C99E', mid:'#3E5E36', deep:'#12200E', barLight:'#2E4A28', barDeep:'#0D180A',
+                    accent:'#C7E0BE', nameColor:'#EAF5E6', gem:'#4C7742', tagFg:'#D6EBCE'},
+           effects:[
+             '<b>グーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>グーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  dorone: { id:'dorone', name:'泥屍亀-ドロネ', attr:'土', theme:'t-sf-tsuchi', rarity:'n', num:'SF-N08',
+           hand:'paper', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_dorone_portrait.webp', cardImg:'card_dorone_full.webp', pixelImg:'card_dorone_sprite.webp',
+           flavor:'甲羅の裂け目から滲む泥は、かつての持ち主の記憶だという。',
+           colors:{light:'#C0AF9A', mid:'#5A4632', deep:'#1C160E', barLight:'#47371F', barDeep:'#140F0A',
+                    accent:'#DDD0BC', nameColor:'#F2ECE2', gem:'#7A6242', tagFg:'#E6DCCB'},
+           effects:[
+             '<b>パーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>パーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  nigori: { id:'nigori', name:'濁水蛙-ニゴリ', attr:'水', theme:'t-sf-mizu', rarity:'n', num:'SF-N09',
+           hand:'scissors', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_nigori_portrait.webp', cardImg:'card_nigori_full.webp', pixelImg:'card_nigori_sprite.webp',
+           flavor:'澄んだ水を知らない。汚れた沼こそが、この蛙のふるさとだ。',
+           colors:{light:'#9AB4C9', mid:'#2E4E6E', deep:'#0E1826', barLight:'#243E5A', barDeep:'#0A121C',
+                    accent:'#BCD4E6', nameColor:'#E2ECF5', gem:'#3E6690', tagFg:'#CBDCEB'},
+           effects:[
+             '<b>チョキで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>チョキで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  kageha_moth: { id:'kageha_moth', name:'陰光蝶-カゲハ', attr:'光', theme:'t-sf-hikari', rarity:'n', num:'SF-N10',
+           hand:'paper', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_kageha_moth_portrait.webp', cardImg:'card_kageha_moth_full.webp', pixelImg:'card_kageha_moth_sprite.webp',
+           flavor:'翼の輝きは、闇に半分喰われてなお、消えることを拒んでいる。',
+           colors:{light:'#D6CE9A', mid:'#7A6E2C', deep:'#241F0E', barLight:'#5C531F', barDeep:'#18140A',
+                    accent:'#EBE4BC', nameColor:'#F7F3E2', gem:'#948826', tagFg:'#EFE9CB'},
+           effects:[
+             '<b>パーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>パーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  kuromimi: { id:'kuromimi', name:'影兎-クロミミ', attr:'闇冥', theme:'t-sf-yami', rarity:'n', num:'SF-N11',
+           hand:'scissors', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_kuromimi_portrait.webp', cardImg:'card_kuromimi_full.webp', pixelImg:'card_kuromimi_sprite.webp',
+           flavor:'足音を立てずに跳ねる。振り返っても、そこにいた証拠は残らない。',
+           colors:{light:'#B79AD6', mid:'#5B2C82', deep:'#1C0E2E', barLight:'#4A2270', barDeep:'#150A20',
+                    accent:'#D9C4F0', nameColor:'#F0E6FA', gem:'#8C4FC9', tagFg:'#E6D6F5'},
+           effects:[
+             '<b>チョキで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>チョキで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  honegarasu: { id:'honegarasu', name:'骸烏-ホネガラス', attr:'闇冥', theme:'t-sf-yami', rarity:'n', num:'SF-N12',
+           hand:'rock', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_honegarasu_portrait.webp', cardImg:'card_honegarasu_full.webp', pixelImg:'card_honegarasu_sprite.webp',
+           flavor:'肉を失ってなお鳴く。その声は、まだ何かを探しているようだ。',
+           colors:{light:'#B79AD6', mid:'#5B2C82', deep:'#1C0E2E', barLight:'#4A2270', barDeep:'#150A20',
+                    accent:'#D9C4F0', nameColor:'#F0E6FA', gem:'#8C4FC9', tagFg:'#E6D6F5'},
+           effects:[
+             '<b>グーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>グーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  dokuro_shroom: { id:'dokuro_shroom', name:'腐毒茸-ドクロ', attr:'草', theme:'t-sf-kusa', rarity:'n', num:'SF-N13',
+           hand:'paper', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_dokuro_shroom_portrait.webp', cardImg:'card_dokuro_shroom_full.webp', pixelImg:'card_dokuro_shroom_sprite.webp',
+           flavor:'笑い続けるキノコ。胞子を吸えば、しばらく同じ気分になれる。',
+           colors:{light:'#A9C99E', mid:'#3E5E36', deep:'#12200E', barLight:'#2E4A28', barDeep:'#0D180A',
+                    accent:'#C7E0BE', nameColor:'#EAF5E6', gem:'#4C7742', tagFg:'#D6EBCE'},
+           effects:[
+             '<b>パーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>パーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  sabimushi: { id:'sabimushi', name:'錆鉄虫-サビムシ', attr:'土', theme:'t-sf-tsuchi', rarity:'n', num:'SF-N14',
+           hand:'scissors', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_sabimushi_portrait.webp', cardImg:'card_sabimushi_full.webp', pixelImg:'card_sabimushi_sprite.webp',
+           flavor:'錆びついた甲殻の隙間から、紫の腐食がじわりと広がる。',
+           colors:{light:'#C0AF9A', mid:'#5A4632', deep:'#1C160E', barLight:'#47371F', barDeep:'#140F0A',
+                    accent:'#DDD0BC', nameColor:'#F2ECE2', gem:'#7A6242', tagFg:'#E6DCCB'},
+           effects:[
+             '<b>チョキで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>チョキで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  onibi: { id:'onibi', name:'冥火狐-オニビ', attr:'炎', theme:'t-sf-honoo', rarity:'n', num:'SF-N15',
+           hand:'rock', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_onibi_portrait.webp', cardImg:'card_onibi_full.webp', pixelImg:'card_onibi_sprite.webp',
+           flavor:'冷たく燃える鬼火をまとう狐。近づく者を化かして森の奥へ誘う。',
+           colors:{light:'#C98FA8', mid:'#7A2A4A', deep:'#240D18', barLight:'#5C1F38', barDeep:'#180810',
+                    accent:'#E8B8CC', nameColor:'#F7E4EC', gem:'#A83A63', tagFg:'#F0CCDA'},
+           effects:[
+             '<b>グーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>グーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  shijima: { id:'shijima', name:'沈黙梟-シジマ', attr:'闇冥', theme:'t-sf-yami', rarity:'n', num:'SF-N16',
+           hand:'paper', hp:50, atk:10, winBonus:5, lossMitigation:5, img:'card_shijima_portrait.webp', cardImg:'card_shijima_full.webp', pixelImg:'card_shijima_sprite.webp',
+           flavor:'鳴き声を忘れた梟。三日月の下で、ただ静かに見つめている。',
+           colors:{light:'#B79AD6', mid:'#5B2C82', deep:'#1C0E2E', barLight:'#4A2270', barDeep:'#150A20',
+                    accent:'#D9C4F0', nameColor:'#F0E6FA', gem:'#8C4FC9', tagFg:'#E6D6F5'},
+           effects:[
+             '<b>パーで勝つ</b>と攻撃力+5（合計15ダメージ）。',
+             '<b>パーで負ける</b>と、相手から受けるダメージ-5。'
+           ] },
+  shokurou: { id:'shokurou', name:'蝕狼-クロガネ', attr:'闇冥', theme:'t-sf-yami', rarity:'r', num:'SF-R01',
+           hand:'rock', hp:88, atk:17, winBonus:8, lossMitigation:6, img:'card_shokurou_portrait.webp', cardImg:'card_shokurou_full.webp', pixelImg:'card_shokurou_sprite.webp',
+           flavor:'牙の隙間から漏れる紫の吐息は、群れの誰も浴びたことのない色。',
+           colors:{light:'#B79AD6', mid:'#5B2C82', deep:'#1C0E2E', barLight:'#4A2270', barDeep:'#150A20',
+                    accent:'#D9C4F0', nameColor:'#F0E6FA', gem:'#8C4FC9', tagFg:'#E6D6F5'},
+           special:{
+             selfHealOnFavoredWin: { hand:'rock', amount:6, moveName:'鋼牙の再生' }
+           },
+           effects:[
+             '<b>グーで勝つ</b>と攻撃力+8（合計25ダメージ）。',
+             '<span class="killshot">グーで勝つたびに</span>、自分のHPを+6回復する。'
+           ] },
+  kageha_oni: { id:'kageha_oni', name:'影刃鬼-カゲハ', attr:'闇冥', theme:'t-sf-yami', rarity:'r', num:'SF-R02',
+           hand:'scissors', hp:88, atk:17, winBonus:8, lossMitigation:6, img:'card_kageha_oni_portrait.webp', cardImg:'card_kageha_oni_full.webp', pixelImg:'card_kageha_oni_sprite.webp',
+           flavor:'笑いながら斬りかかる。それが恐怖からくるものだと、誰も気づいていない。',
+           colors:{light:'#B79AD6', mid:'#5B2C82', deep:'#1C0E2E', barLight:'#4A2270', barDeep:'#150A20',
+                    accent:'#D9C4F0', nameColor:'#F0E6FA', gem:'#8C4FC9', tagFg:'#E6D6F5'},
+           special:{
+             opponentAtkDebuffOnFavoredWin: { hand:'scissors', amount:4, moveName:'影断ちの一閃' }
+           },
+           effects:[
+             '<b>チョキで勝つ</b>と攻撃力+8（合計25ダメージ）。',
+             '<span class="killshot">チョキで勝つたびに</span>、相手の<b>ATKを-4</b>（永続蓄積）。'
+           ] },
+  arachne: { id:'arachne', name:'呪縛蜘蛛-アラクネ', attr:'闇冥', theme:'t-sf-yami', rarity:'r', num:'SF-R03',
+           hand:'paper', hp:88, atk:17, winBonus:8, lossMitigation:6, img:'card_arachne_portrait.webp', cardImg:'card_arachne_full.webp', pixelImg:'card_arachne_sprite.webp',
+           flavor:'紫の巣に囚われた者は、時間の感覚さえ奪われるという。',
+           colors:{light:'#B79AD6', mid:'#5B2C82', deep:'#1C0E2E', barLight:'#4A2270', barDeep:'#150A20',
+                    accent:'#D9C4F0', nameColor:'#F0E6FA', gem:'#8C4FC9', tagFg:'#E6D6F5'},
+           special:{
+             aikoFavoredDamageOpponent: { hand:'paper', amount:9, moveName:'呪糸絡め' }
+           },
+           effects:[
+             '<b>パーで勝つ</b>と攻撃力+8（合計25ダメージ）。',
+             '<b>パーであいこ</b>で相手に9ダメージ。'
+           ] },
+  infernal: { id:'infernal', name:'堕炎騎士-インフェル', attr:'炎', theme:'t-sf-honoo', rarity:'r', num:'SF-R04',
+           hand:'rock', hp:88, atk:17, winBonus:8, lossMitigation:6, img:'card_infernal_portrait.webp', cardImg:'card_infernal_full.webp', pixelImg:'card_infernal_sprite.webp',
+           flavor:'誓いを果たせなかった騎士は、燃え尽きることさえ許されなかった。',
+           colors:{light:'#C98FA8', mid:'#7A2A4A', deep:'#240D18', barLight:'#5C1F38', barDeep:'#180810',
+                    accent:'#E8B8CC', nameColor:'#F7E4EC', gem:'#A83A63', tagFg:'#F0CCDA'},
+           special:{
+             opponentHandExtraDamage: { hand:'paper', amount:6, moveName:'堕炎の斬撃' }
+           },
+           effects:[
+             '<b>グーで勝つ</b>と攻撃力+8（合計25ダメージ）。',
+             '<b>パーで勝つ</b>と追加で6ダメージ。'
+           ] },
+  fuyugara: { id:'fuyugara', name:'氷獄僧-フユガラ', attr:'氷', theme:'t-sf-kori', rarity:'r', num:'SF-R05',
+           hand:'paper', hp:88, atk:17, winBonus:8, lossMitigation:6, img:'card_fuyugara_portrait.webp', cardImg:'card_fuyugara_full.webp', pixelImg:'card_fuyugara_sprite.webp',
+           flavor:'フードの奥に顔はない。ただ紫の光だけが、静かに脈打っている。',
+           colors:{light:'#A9C3D9', mid:'#3E5E78', deep:'#12202C', barLight:'#2E4A60', barDeep:'#0D1820',
+                    accent:'#C7DCE9', nameColor:'#EAF2F7', gem:'#4C7794', tagFg:'#D6E6EF'},
+           special:{
+             selfHealOnFavoredWin: { hand:'paper', amount:6, moveName:'氷獄の静息' }
+           },
+           effects:[
+             '<b>パーで勝つ</b>と攻撃力+8（合計25ダメージ）。',
+             '<span class="killshot">パーで勝つたびに</span>、自分のHPを+6回復する。'
+           ] },
+  raika: { id:'raika', name:'雷禍鴉-ライカ', attr:'雷', theme:'t-sf-kaminari', rarity:'r', num:'SF-R06',
+           hand:'scissors', hp:88, atk:17, winBonus:8, lossMitigation:6, img:'card_raika_portrait.webp', cardImg:'card_raika_full.webp', pixelImg:'card_raika_sprite.webp',
+           flavor:'一声鳴けば、空を裂いて紫の雷が落ちる。それが挨拶がわりだという。',
+           colors:{light:'#C3A9D9', mid:'#5A3E78', deep:'#1C122C', barLight:'#472E60', barDeep:'#140D20',
+                    accent:'#DCC7E9', nameColor:'#F2EAF7', gem:'#7A4C94', tagFg:'#E6D6EF'},
+           special:{
+             aikoFavoredDamageOpponent: { hand:'scissors', amount:9, moveName:'雷禍乱撃' }
+           },
+           effects:[
+             '<b>チョキで勝つ</b>と攻撃力+8（合計25ダメージ）。',
+             '<b>チョキであいこ</b>で相手に9ダメージ。'
+           ] },
+  trent: { id:'trent', name:'屍樹人-トレント', attr:'草', theme:'t-sf-kusa', rarity:'r', num:'SF-R07',
+           hand:'rock', hp:88, atk:17, winBonus:8, lossMitigation:6, img:'card_trent_portrait.webp', cardImg:'card_trent_full.webp', pixelImg:'card_trent_sprite.webp',
+           flavor:'幹の奥には、かつて森を守っていた誰かの記憶が眠っている。',
+           colors:{light:'#A9C99E', mid:'#3E5E36', deep:'#12200E', barLight:'#2E4A28', barDeep:'#0D180A',
+                    accent:'#C7E0BE', nameColor:'#EAF5E6', gem:'#4C7742', tagFg:'#D6EBCE'},
+           special:{
+             opponentAtkDebuffOnFavoredWin: { hand:'rock', amount:4, moveName:'腐根縛り' }
+           },
+           effects:[
+             '<b>グーで勝つ</b>と攻撃力+8（合計25ダメージ）。',
+             '<span class="killshot">グーで勝つたびに</span>、相手の<b>ATKを-4</b>（永続蓄積）。'
+           ] },
+  abyss: { id:'abyss', name:'深淵鮫-アビス', attr:'水', theme:'t-sf-mizu', rarity:'r', num:'SF-R08',
+           hand:'scissors', hp:88, atk:17, winBonus:8, lossMitigation:6, img:'card_abyss_portrait.webp', cardImg:'card_abyss_full.webp', pixelImg:'card_abyss_sprite.webp',
+           flavor:'光る提灯に誘われた獲物は、二度と海面を見ることはない。',
+           colors:{light:'#9AB4C9', mid:'#2E4E6E', deep:'#0E1826', barLight:'#243E5A', barDeep:'#0A121C',
+                    accent:'#BCD4E6', nameColor:'#E2ECF5', gem:'#3E6690', tagFg:'#CBDCEB'},
+           special:{
+             opponentHandExtraDamage: { hand:'scissors', amount:6, moveName:'深淵の牙' }
+           },
+           effects:[
+             '<b>チョキで勝つ</b>と攻撃力+8（合計25ダメージ）。',
+             '<b>チョキで勝つ</b>と追加で6ダメージ。'
+           ] },
+  kegare: { id:'kegare', name:'蝕光巫女-ケガレ', attr:'光', theme:'t-sf-hikari', rarity:'r', num:'SF-R09',
+           hand:'paper', hp:88, atk:17, winBonus:8, lossMitigation:6, img:'card_kegare_portrait.webp', cardImg:'card_kegare_full.webp', pixelImg:'card_kegare_sprite.webp',
+           flavor:'かつて祈りを捧げた手は、今は闇を纏うことしかできない。',
+           colors:{light:'#D6CE9A', mid:'#7A6E2C', deep:'#241F0E', barLight:'#5C531F', barDeep:'#18140A',
+                    accent:'#EBE4BC', nameColor:'#F7F3E2', gem:'#948826', tagFg:'#EFE9CB'},
+           special:{
+             aikoFavoredHealOpponent: { hand:'paper', amount:6, moveName:'蝕みの慈悲' }
+           },
+           effects:[
+             '<b>パーで勝つ</b>と攻撃力+8（合計25ダメージ）。',
+             '<b>パーであいこ</b>で自分のHPを+6回復する（相手の力を吸う）。'
+           ] },
+  cerberus: { id:'cerberus', name:'冥王獣-ケルベロス', attr:'闇冥', theme:'t-sf-yami', rarity:'sr', num:'SF-SR01',
+           hand:'rock', hp:150, atk:35, winBonus:14, lossMitigation:7, img:'card_cerberus_portrait.webp', cardImg:'card_cerberus_full.webp', pixelImg:'card_cerberus_sprite.webp',
+           flavor:'三つの首は、それぞれ別々の罪を裁くために生まれたという。',
+           colors:{light:'#B79AD6', mid:'#5B2C82', deep:'#1C0E2E', barLight:'#4A2270', barDeep:'#150A20',
+                    accent:'#D9C4F0', nameColor:'#F0E6FA', gem:'#8C4FC9', tagFg:'#E6D6F5'},
+           special:{
+             ultimatePoison: { damage:20, damagePerTurn:20, turns:3, moveName:'冥府の咆哮' }
+           },
+           effects:[
+             '<span class="killshot">必殺技「冥府の咆哮」</span>：即座に<b>20ダメージ</b>＋<b>侵食</b>付与(毎ターン20×3)。'
+           ] },
+  nox_saint: { id:'nox_saint', name:'蝕聖女-ノクス', attr:'闇冥', theme:'t-sf-yami', rarity:'sr', num:'SF-SR02',
+           hand:'paper', hp:150, atk:35, winBonus:14, lossMitigation:7, img:'card_nox_saint_portrait.webp', cardImg:'card_nox_saint_full.webp', pixelImg:'card_nox_saint_sprite.webp',
+           flavor:'祈りの言葉はもう思い出せない。それでも、手を合わせる仕草だけは残っている。',
+           colors:{light:'#B79AD6', mid:'#5B2C82', deep:'#1C0E2E', barLight:'#4A2270', barDeep:'#150A20',
+                    accent:'#D9C4F0', nameColor:'#F0E6FA', gem:'#8C4FC9', tagFg:'#E6D6F5'},
+           special:{
+             ultimateTempAtkDebuff: { damage:15, amount:30, turns:2, moveName:'堕ちた祈り' }
+           },
+           effects:[
+             '<span class="killshot">必殺技「堕ちた祈り」</span>：即座に<b>15ダメージ</b>＋相手の<b>ATK-30</b>(2ターン)。'
+           ] },
+  bahamura: { id:'bahamura', name:'深淵竜-バハムーラ', attr:'水', theme:'t-sf-mizu', rarity:'sr', num:'SF-SR03',
+           hand:'scissors', hp:150, atk:35, winBonus:14, lossMitigation:7, img:'card_bahamura_portrait.webp', cardImg:'card_bahamura_full.webp', pixelImg:'card_bahamura_sprite.webp',
+           flavor:'海の底に沈んだ光すら、この竜の鱗の前では色を失う。',
+           colors:{light:'#9AB4C9', mid:'#2E4E6E', deep:'#0E1826', barLight:'#243E5A', barDeep:'#0A121C',
+                    accent:'#BCD4E6', nameColor:'#E2ECF5', gem:'#3E6690', tagFg:'#CBDCEB'},
+           special:{
+             ultimatePoison: { damage:20, damagePerTurn:15, turns:2, moveName:'深淵の渦' }
+           },
+           effects:[
+             '<span class="killshot">必殺技「深淵の渦」</span>：即座に<b>20ダメージ</b>＋<b>侵食</b>付与(毎ターン15×2)。'
+           ] },
+  muramasa: { id:'muramasa', name:'呪剣士-ムラマサ', attr:'闇冥', theme:'t-sf-yami', rarity:'sr', num:'SF-SR04',
+           hand:'scissors', hp:145, atk:36, winBonus:14, lossMitigation:5, img:'card_muramasa_portrait.webp', cardImg:'card_muramasa_full.webp', pixelImg:'card_muramasa_sprite.webp',
+           flavor:'斬るたびに己の血も流れる。それでも刀を手放すことはない。',
+           colors:{light:'#B79AD6', mid:'#5B2C82', deep:'#1C0E2E', barLight:'#4A2270', barDeep:'#150A20',
+                    accent:'#D9C4F0', nameColor:'#F0E6FA', gem:'#8C4FC9', tagFg:'#E6D6F5'},
+           special:{
+             ultimateRandomDamage: { min:40, max:60, moveName:'無明の一閃' }
+           },
+           effects:[
+             '<span class="killshot">必殺技「無明の一閃」</span>：<b>40〜60のランダムダメージ</b>。'
+           ] },
+  nyx: { id:'nyx', name:'常闇神-ニュクス', attr:'闇冥', theme:'t-sf-yami', rarity:'lsr', num:'SF-LSR01',
+           hand:'paper', hp:300, atk:73, winBonus:29, lossMitigation:5, img:'card_nyx_portrait.webp', cardImg:'card_nyx_full.webp', pixelImg:'card_nyx_sprite.webp',
+           flavor:'挑む者に、等しく夜を。耐えた者にも、なお深い夜を。',
+           colors:{light:'#B79AD6', mid:'#5B2C82', deep:'#1C0E2E', barLight:'#4A2270', barDeep:'#150A20',
+                    accent:'#D9C4F0', nameColor:'#F0E6FA', gem:'#8C4FC9', tagFg:'#E6D6F5'},
+           special:{
+             ultimateCorruptionCombo: { damage:25, poisonDmg:15, poisonTurns:2, atkDebuffAmount:30, atkDebuffTurns:2, moveName:'常闇の帳' }
+           },
+           effects:[
+             '<span class="killshot">必殺技「常闇の帳」</span>：即座に<b>25ダメージ</b>＋<b>侵食</b>(毎ターン15×2)＋相手の<b>ATK-30</b>(2ターン)。'
+           ] },
 };
-const CARD_POOL = ['goo','paa','choki','yami','kusa','doro','hika','usagi','tori','risu','katsumuri','sousei_ou','gcp_rock','gcp_scissors','gcp_paper','fubuki','ignis','biribiri','lumina','kurogane','thornweed','garock','abyssal','shizarisu','glacia','kaguray','raikou','sylvan','ascalon','valkis','aither','tsurara','hibana','shibire','hagiri','kurousa','karasu','mogura','ganseki','kouki','hikariga','awagaeru','fuwakurage','shiogani','amausa','tsubame','hayabusa','shirozuki','hakuretsu','kagutsuchi','ikazuchi','leolite','hikarimiko','kuragari','yomisasori','togebachi','dogaiou','nendori','mizumusashi','sazarenami','tensho','amanoha','tensaval','frostwyrm','homurabi','leviaking','erebos','astragal'];
+const CARD_POOL = ['goo','paa','choki','yami','kusa','doro','hika','usagi','tori','risu','katsumuri','sousei_ou','gcp_rock','gcp_scissors','gcp_paper','fubuki','ignis','biribiri','lumina','kurogane','thornweed','garock','abyssal','shizarisu','glacia','kaguray','raikou','sylvan','ascalon','valkis','aither','tsurara','hibana','shibire','hagiri','kurousa','karasu','mogura','ganseki','kouki','hikariga','awagaeru','fuwakurage','shiogani','amausa','tsubame','hayabusa','shirozuki','hakuretsu','kagutsuchi','ikazuchi','leolite','hikarimiko','kuragari','yomisasori','togebachi','dogaiou','nendori','mizumusashi','sazarenami','tensho','amanoha','tensaval','frostwyrm','homurabi','leviaking','erebos','astragal','kuro_slime','murasaki_slime','yoru_slime','susu','shimo','yamibiri','kareha_vine','dorone','nigori','kageha_moth','kuromimi','honegarasu','dokuro_shroom','sabimushi','onibi','shijima','shokurou','kageha_oni','arachne','infernal','fuyugara','raika','trent','abyss','kegare','cerberus','nox_saint','bahamura','muramasa','nyx'];
 
 const HAND_EMOJI = { rock:'✊', scissors:'✌️', paper:'🖐️' };
 const HAND_JP    = { rock:'グー', scissors:'チョキ', paper:'パー' };
@@ -6073,6 +6394,28 @@ function getUltimateEffect(mon, opponent){
     const dmg = a.min + Math.floor(Math.random() * (a.max - a.min + 1));
     return { damage: dmg, heal:0, debuff:0, moveName:a.moveName, type:'ultimate' };
   }
+  // 侵食: 即時の軽いダメージ + 数ターンにわたって毎ターンダメージが入り続ける状態異常
+  if(sp.ultimatePoison){
+    const a = sp.ultimatePoison;
+    return { damage:a.damage||0, heal:0, debuff:0,
+             poison:{ dmg:a.damagePerTurn, turns:a.turns },
+             moveName:a.moveName, type:'ultimate' };
+  }
+  // 一時ATKデバフ: 即時の軽いダメージ + 数ターンの間だけ相手のATKが下がる(永続ではなく時限)
+  if(sp.ultimateTempAtkDebuff){
+    const a = sp.ultimateTempAtkDebuff;
+    return { damage:a.damage||0, heal:0, debuff:0,
+             tempAtkDebuff:{ amount:a.amount, turns:a.turns },
+             moveName:a.moveName, type:'ultimate' };
+  }
+  // 複合技(LSR等の特別な必殺技用): 侵食+一時ATKデバフを同時に付与
+  if(sp.ultimateCorruptionCombo){
+    const a = sp.ultimateCorruptionCombo;
+    return { damage:a.damage||0, heal:0, debuff:0,
+             poison:{ dmg:a.poisonDmg, turns:a.poisonTurns },
+             tempAtkDebuff:{ amount:a.atkDebuffAmount, turns:a.atkDebuffTurns },
+             moveName:a.moveName, type:'ultimate' };
+  }
   if(sp.selfHealOnFavoredWin){
     const a = sp.selfHealOnFavoredWin;
     return { damage: Math.round(mon.atk*1.5*DAMAGE_PACE), heal: a.amount*5, debuff:0, moveName:a.moveName, type:'ultimate' };
@@ -6116,6 +6459,12 @@ const ULT_VIDEO_MAP = {
   leviaking: 'ult_leviaking.mp4',
   erebos:    'erebos_raid_ult.mp4',
   astragal:  'astragal_raid_ult.mp4',
+  // 常闇の侵蝕パック SR/LSR
+  cerberus:  'ult_cerberus.mp4',
+  nox_saint: 'ult_nox_saint.mp4',
+  bahamura:  'ult_bahamura.mp4',
+  muramasa:  'ult_muramasa.mp4',
+  nyx:       'ult_nyx.mp4',
 };
 function playUltimateVideo(fileName, onDone, overlayId, videoId){
   const overlay = document.getElementById(overlayId || 'ultVideoOverlay');
@@ -6167,6 +6516,8 @@ function doResolveUltimateTurn(playerUsed, cpuUsed, playerMon, cpuMon){
     cpuMon.curHp -= eff.damage;
     if(eff.heal>0) playerMon.curHp = Math.min(playerMon.maxHp, playerMon.curHp + eff.heal);
     if(eff.debuff>0) cpuMon.atk = Math.max(1, cpuMon.atk - eff.debuff);
+    if(eff.poison){ cpuMon.poisonDmg = eff.poison.dmg; cpuMon.poisonTurns = eff.poison.turns; }
+    if(eff.tempAtkDebuff){ cpuMon.tempAtkDebuff = eff.tempAtkDebuff.amount; cpuMon.tempAtkDebuffTurns = eff.tempAtkDebuff.turns; }
     playerMon.ultGauge = 0;
     showDamage('cpu', eff.damage);
     flashCard('cpu','lose'); flashCard('player','win');
@@ -6174,6 +6525,8 @@ function doResolveUltimateTurn(playerUsed, cpuUsed, playerMon, cpuMon){
     let part = `${playerMon.name}の${eff.moveName}！ ${eff.damage} ダメージ`;
     if(eff.heal>0) part += `・HP${eff.heal}回復`;
     if(eff.debuff>0) part += `・相手ATK-${eff.debuff}`;
+    if(eff.poison) part += `・侵食付与(毎ターン${eff.poison.dmg}×${eff.poison.turns}ターン)`;
+    if(eff.tempAtkDebuff) part += `・相手ATK-${eff.tempAtkDebuff.amount}（${eff.tempAtkDebuff.turns}ターン）`;
     logParts.push(part);
     cutinCount++;
   }
@@ -6182,6 +6535,8 @@ function doResolveUltimateTurn(playerUsed, cpuUsed, playerMon, cpuMon){
     playerMon.curHp -= eff.damage;
     if(eff.heal>0) cpuMon.curHp = Math.min(cpuMon.maxHp, cpuMon.curHp + eff.heal);
     if(eff.debuff>0) playerMon.atk = Math.max(1, playerMon.atk - eff.debuff);
+    if(eff.poison){ playerMon.poisonDmg = eff.poison.dmg; playerMon.poisonTurns = eff.poison.turns; }
+    if(eff.tempAtkDebuff){ playerMon.tempAtkDebuff = eff.tempAtkDebuff.amount; playerMon.tempAtkDebuffTurns = eff.tempAtkDebuff.turns; }
     cpuMon.ultGauge = 0;
     showDamage('player', eff.damage);
     flashCard('player','lose'); flashCard('cpu','win');
@@ -6189,6 +6544,8 @@ function doResolveUltimateTurn(playerUsed, cpuUsed, playerMon, cpuMon){
     let part = `${cpuMon.name}の${eff.moveName}！ ${eff.damage} ダメージを受けた`;
     if(eff.heal>0) part += `・相手HP${eff.heal}回復`;
     if(eff.debuff>0) part += `・自分のATK-${eff.debuff}`;
+    if(eff.poison) part += `・侵食を受けた(毎ターン${eff.poison.dmg}×${eff.poison.turns}ターン)`;
+    if(eff.tempAtkDebuff) part += `・自分のATK-${eff.tempAtkDebuff.amount}（${eff.tempAtkDebuff.turns}ターン）`;
     logParts.push(part);
     cutinCount++;
   }
@@ -6200,7 +6557,33 @@ function doResolveUltimateTurn(playerUsed, cpuUsed, playerMon, cpuMon){
   updateUltGauge('player');
 
   const delay = 700 + cutinCount*1150; // let the cutin queue finish playing before KO checks
-  setTimeout(()=> checkKnockouts(), delay);
+  setTimeout(()=>{ tickStatusEffects(); checkKnockouts(); }, delay);
+}
+
+// 継続効果(侵食の毎ターンダメージ、一時ATKデバフの残りターン)を処理する。
+// 各ターンの主要な処理(勝敗判定・必殺技)が終わった直後に1回だけ呼ぶ。
+function tickStatusEffects(){
+  ['player','cpu'].forEach(side=>{
+    const mon = G[side] && G[side].active;
+    if(!mon || mon.curHp<=0) return;
+    if(mon.poisonTurns > 0){
+      const dmg = mon.poisonDmg || 0;
+      mon.curHp -= dmg;
+      mon.poisonTurns -= 1;
+      showDamage(side, dmg);
+      flashCard(side, 'lose');
+      const label = sideLabel(side);
+      setTimeout(()=>{
+        const log = document.getElementById('battleLog');
+        if(log) log.textContent = `${mon.name}は侵食に蝕まれ${dmg}ダメージ` + (mon.poisonTurns>0 ? `（あと${mon.poisonTurns}ターン）` : '（侵食が晴れた）');
+      }, 260);
+    }
+    if(mon.tempAtkDebuffTurns > 0){
+      mon.tempAtkDebuffTurns -= 1;
+      if(mon.tempAtkDebuffTurns <= 0) mon.tempAtkDebuff = 0;
+    }
+  });
+  updateHp('cpu'); updateHp('player');
 }
 
 function cpuPick(mon){
@@ -6215,7 +6598,7 @@ const DAMAGE_PACE = 2.5; // global damage multiplier; tuned so an even N-vs-N fi
 
 // damage using the attacking card's own winBonus (+ any accumulated stack bonus, e.g. GCP scissors)
 function computeDamage(attacker, attackerHand){
-  let dmg = attacker.atk;
+  let dmg = Math.max(1, attacker.atk - (attacker.tempAtkDebuff||0));
   if(attackerHand===attacker.hand) dmg += (attacker.winBonus ?? 5);
   if(attacker.stackBonus) dmg += attacker.stackBonus;
   return Math.round(dmg * DAMAGE_PACE);
@@ -6367,7 +6750,7 @@ function applyOutcome(playerHand, cpuHand, outcome){
   }
 
   const koDelay = killTriggered ? 1500 : (extraLines.length ? 1050 : 700);
-  setTimeout(()=> checkKnockouts(), koDelay);
+  setTimeout(()=>{ tickStatusEffects(); checkKnockouts(); }, koDelay);
 }
 
 // dramatic finishing-blow effect: screen flash, shake, and a bold callout text
@@ -7521,7 +7904,7 @@ const GACHA_POOL = {
                                                   // unlisted rarity can't be sold for real money. If MGR ever
                                                   // comes back, it'll need a disclosed rate in the rate table.)
 };
-const GACHA_RATES = { lsr:0.03, sr:0.12, r:0.30, n:0.55 };
+const GACHA_RATES = { lsr:0.002, sr:0.148, r:0.30, n:0.55 };
 
 // パックの種類。新しいパックはここに1エントリ足すだけでOK。
 // rates/pool を null にすると、通常のGACHA_RATES/GACHA_POOL(全カード)がそのまま使われる。
@@ -7536,6 +7919,22 @@ const PACK_TYPES = {
     pricePerPack: 500,
     rates: null,
     pool: null,
+    locked: false,
+  },
+  shadowfall: {
+    id: 'shadowfall',
+    name: '常闇の侵蝕パック',
+    concept: '闇に蝕まれし者たちのみが排出される特別パック',
+    img: 'pack_shadowfall.webp',
+    cardsPerPack: 5,
+    pricePerPack: 500,
+    rates: null, // 通常と同じ確率(N55% R30% SR12% LSR3%)。中身のプールだけこのパック専用
+    pool: {
+      n: ['kuro_slime','murasaki_slime','yoru_slime','susu','shimo','yamibiri','kareha_vine','dorone','nigori','kageha_moth','kuromimi','honegarasu','dokuro_shroom','sabimushi','onibi','shijima'],
+      r: ['shokurou','kageha_oni','arachne','infernal','fuyugara','raika','trent','abyss','kegare'],
+      sr: ['cerberus','nox_saint','bahamura','muramasa'],
+      lsr: ['nyx'],
+    },
     locked: false,
   },
   // 例: 今後こんな感じで追加できる(locked:trueなら選択肢には出るが開けない「近日実装」表示)
@@ -7593,7 +7992,7 @@ function renderGachaBanner(){
   document.getElementById('rateN').textContent = Math.round(rates.n*100) + '%';
   document.getElementById('rateR').textContent = Math.round(rates.r*100) + '%';
   document.getElementById('rateSR').textContent = Math.round(rates.sr*100) + '%';
-  document.getElementById('rateLSR').textContent = Math.round(rates.lsr*100) + '%';
+  document.getElementById('rateLSR').textContent = (Math.round(rates.lsr*1000)/10) + '%';
 
   document.querySelector('#gachaSingle .gb-label').textContent = `パック1つ（${pack.cardsPerPack}枚）`;
   document.querySelector('#gachaSingle .gb-cost').textContent = `🪙 ${pack.pricePerPack}`;
