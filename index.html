@@ -3463,6 +3463,7 @@ const SCREEN_BGM_MAP = {
   home: 'home', arcadeBattle: 'battle', splash: 'title', title: 'title',
   collectionHome: 'collection', storyChapters: 'story', online: 'online',
   gachaHome: 'gachaHome', raidHome: 'raidHome',
+  menuHub: 'home', settingsScreen: 'home', profileScreen: 'home', newsScreen: 'home',
 };
 let lastResultWon = true; // set right before each go('arcadeResult') call
 function handleScreenAudio(name){
@@ -3966,6 +3967,9 @@ document.getElementById('bgmVolumeSlider').addEventListener('input', (e)=>{
 document.getElementById('sfxVolumeSlider').addEventListener('input', (e)=>{
   sfxVolume = Number(e.target.value) / 100;
   saveState();
+});
+document.getElementById('sfxVolumeSlider').addEventListener('change', ()=>{
+  playSE('uiTap'); // スライダーを離した時に確認用の音を鳴らす
 });
 document.getElementById('muteToggle').addEventListener('click', ()=>{
   audioMuted = !audioMuted;
