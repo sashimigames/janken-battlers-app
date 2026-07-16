@@ -3340,6 +3340,68 @@ let audioMuted = false; // future mute toggle hook
 let currentBgmKey = null;
 let bgmPendingRetry = false; // true when playBGM() was blocked by the browser's autoplay policy
 
+// ============================================================
+//  WEB AUDIO VOLUME ROUTING
+// ------------------------------------------------------------
+//  iOS Safari IGNORES HTMLMediaElement.volume — setting el.volume in JS does
+//  nothing on iPhone/iPad (the OS reserves volume for the hardware buttons).
+//  So to make the in-app BGM/SE sliders actually work on iOS, we route every
+//  <audio> element through the Web Audio graph: element -> GainNode -> output.
+//  GainNode.gain IS honoured on iOS, so that's what the sliders drive.
+//
+//  createMediaElementSource() can only be called ONCE per element (a second
+//  call throws), so we memoize each element's source node in a WeakMap. Once
+//  an element is routed through Web Audio, its own el.volume no longer affects
+//  output, so we pin el.volume=1 and control everything via the gain nodes.
+// ============================================================
+let _bgmGain = null;
+let _sfxGain = null;
+const _mediaSourceNodes = new WeakMap(); // audioEl -> MediaElementAudioSourceNode
+function ensureAudioGraph(){
+  const ctx = getAudioCtx();
+  if(!ctx) return null;
+  if(!_bgmGain){
+    _bgmGain = ctx.createGain();
+    _bgmGain.gain.value = audioMuted ? 0 : bgmVolume;
+    _bgmGain.connect(ctx.destination);
+  }
+  if(!_sfxGain){
+    _sfxGain = ctx.createGain();
+    _sfxGain.gain.value = audioMuted ? 0 : sfxVolume;
+    _sfxGain.connect(ctx.destination);
+  }
+  return ctx;
+}
+// route an <audio> element into the graph under the given bus ('bgm' | 'sfx').
+// safe to call repeatedly — memoized. returns true if routed (or already routed).
+function routeMediaElement(el, bus){
+  if(!el) return false;
+  const ctx = ensureAudioGraph();
+  if(!ctx) return false;
+  if(ctx.state === 'suspended') ctx.resume().catch(()=>{});
+  if(!_mediaSourceNodes.has(el)){
+    let node;
+    try{ node = ctx.createMediaElementSource(el); }
+    catch(e){ return false; } // some browsers throw for cross-origin/edge cases; fall back to el.volume
+    node.connect(bus === 'bgm' ? _bgmGain : _sfxGain);
+    _mediaSourceNodes.set(el, node);
+    el.volume = 1; // output level now comes from the gain node, not the element
+  }
+  return true;
+}
+function applyBgmVolume(){
+  if(_bgmGain){
+    const ctx = getAudioCtx();
+    _bgmGain.gain.setValueAtTime(audioMuted ? 0 : bgmVolume, ctx ? ctx.currentTime : 0);
+  }
+}
+function applySfxVolume(){
+  if(_sfxGain){
+    const ctx = getAudioCtx();
+    _sfxGain.gain.setValueAtTime(audioMuted ? 0 : sfxVolume, ctx ? ctx.currentTime : 0);
+  }
+}
+
 function playSE(key){
   if(audioMuted) return;
   // synthesized cues (no audio asset needed) for outcomes that never had a sound file
@@ -3347,8 +3409,9 @@ function playSE(key){
   const el = SFX[key];
   if(!el) return;
   try{
+    const routed = routeMediaElement(el, 'sfx');
     el.currentTime = 0;
-    el.volume = sfxVolume;
+    if(routed){ applySfxVolume(); } else { el.volume = sfxVolume; } // fallback path for non-iOS if routing failed
     el.play().catch(()=>{}); // SE failures are low-stakes; ignore
   }catch(e){}
 }
@@ -3374,17 +3437,20 @@ function playSynthSE(key){
   if(ctx.state === 'suspended') ctx.resume().catch(()=>{});
   const cfg = SYNTH_SE[key];
   const now = ctx.currentTime;
+  ensureAudioGraph();
+  const busTarget = _sfxGain || ctx.destination;
   cfg.notes.forEach(([freq, offset, dur])=>{
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = cfg.type;
     osc.frequency.value = freq;
     const start = now + offset;
-    // quick attack + exponential release so blips don't click
+    // quick attack + exponential release so blips don't click.
+    // sfxVolume is applied by the _sfxGain bus now, so this gain only shapes the envelope.
     gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(cfg.gain * sfxVolume, start + 0.012);
+    gain.gain.exponentialRampToValueAtTime(cfg.gain, start + 0.012);
     gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
-    osc.connect(gain); gain.connect(ctx.destination);
+    osc.connect(gain); gain.connect(busTarget);
     osc.start(start);
     osc.stop(start + dur + 0.02);
   });
@@ -3404,7 +3470,8 @@ function playBGM(key){
   // screen swaps) where two tracks have ended up playing at once in the past.
   pauseAllBgmExcept(key);
   if(audioMuted) return;
-  el.volume = bgmVolume;
+  const routed = routeMediaElement(el, 'bgm');
+  if(routed){ applyBgmVolume(); } else { el.volume = bgmVolume; } // fallback for non-iOS if routing failed
   el.currentTime = 0;
   const p = el.play();
   if(p && typeof p.catch === 'function'){
@@ -3499,6 +3566,11 @@ document.addEventListener('click', function onFirstUserGesture(){
   if(!audioUnlocked){
     audioUnlocked = true;
     audioJustUnlockedThisTap = true;
+    // Bring up the Web Audio graph on this first real gesture (iOS starts the
+    // AudioContext in a 'suspended' state until a user gesture resumes it).
+    const _ctx = getAudioCtx();
+    if(_ctx && _ctx.state === 'suspended') _ctx.resume().catch(()=>{});
+    ensureAudioGraph();
     // NOTE: BGM.title is deliberately excluded here — it's usually also the
     // currentBgmKey at this exact moment (first tap), so priming it here would
     // race against the "retry" play() call just below and could pause/rewind
@@ -3961,11 +4033,13 @@ function updateSettingsDisplay(){
 }
 document.getElementById('bgmVolumeSlider').addEventListener('input', (e)=>{
   bgmVolume = Number(e.target.value) / 100;
-  if(currentBgmKey && BGM[currentBgmKey] && !audioMuted) BGM[currentBgmKey].volume = bgmVolume;
+  applyBgmVolume(); // iOS-safe: drives the Web Audio gain node
+  if(!_bgmGain && currentBgmKey && BGM[currentBgmKey] && !audioMuted) BGM[currentBgmKey].volume = bgmVolume; // fallback
   saveState();
 });
 document.getElementById('sfxVolumeSlider').addEventListener('input', (e)=>{
   sfxVolume = Number(e.target.value) / 100;
+  applySfxVolume(); // iOS-safe: drives the Web Audio gain node
   saveState();
 });
 document.getElementById('sfxVolumeSlider').addEventListener('change', ()=>{
@@ -3973,10 +4047,13 @@ document.getElementById('sfxVolumeSlider').addEventListener('change', ()=>{
 });
 document.getElementById('muteToggle').addEventListener('click', ()=>{
   audioMuted = !audioMuted;
+  applyBgmVolume(); // gain -> 0 (iOS-safe)
+  applySfxVolume();
   if(audioMuted){
     if(currentBgmKey && BGM[currentBgmKey]) BGM[currentBgmKey].pause();
   } else if(currentBgmKey && BGM[currentBgmKey]){
-    BGM[currentBgmKey].volume = bgmVolume;
+    const routed = routeMediaElement(BGM[currentBgmKey], 'bgm');
+    if(routed){ applyBgmVolume(); } else { BGM[currentBgmKey].volume = bgmVolume; }
     BGM[currentBgmKey].play().catch(()=>{ bgmPendingRetry = true; });
   }
   updateSettingsDisplay();
