@@ -371,6 +371,25 @@
   .chapter-reward{ font-size:9px; color:var(--gold); opacity:0.65; margin-top:2px; }
   .chapter-status{ flex-shrink:0; font-size:16px; }
 
+  .season-tabs{ display:flex; gap:8px; margin-bottom:10px; }
+  .season-tab{
+    flex:1; text-align:center; padding:9px 6px; border-radius:11px; cursor:pointer;
+    background:rgba(0,0,0,0.3); border:1px solid rgba(230,200,120,0.25);
+    font-family:"Shippori Mincho",serif; font-weight:700; font-size:12px; color:var(--gold);
+    opacity:0.7;
+  }
+  .season-tab.active{
+    opacity:1; color:var(--gold-bright); border-color:rgba(230,200,120,0.7);
+    background:rgba(230,200,120,0.12);
+  }
+  .season-utility-row{ display:flex; gap:8px; margin-bottom:10px; }
+  .season-utility-btn{
+    flex:1; text-align:center; padding:8px 6px; border-radius:10px; cursor:pointer;
+    background:none; border:1px solid rgba(230,200,120,0.3); color:var(--gold);
+    font-family:"Shippori Mincho",serif; font-weight:700; font-size:11px;
+  }
+  .season-utility-btn:active{ transform:scale(0.97); }
+
   /* ===== story intro modal ===== */
   .story-intro-card{ text-align:center; padding:16px 14px; }
   .si-chapnum{
@@ -2832,6 +2851,11 @@
       <h2>シーズンストーリー</h2>
       <p id="storySeasonSub">強敵たちを倒して物語を進めよう</p>
     </div>
+    <div class="season-tabs" id="seasonTabs"></div>
+    <div class="season-utility-row">
+      <button class="season-utility-btn" id="replayPrologueBtn">📜 プロローグ</button>
+      <button class="season-utility-btn" id="replayEndingBtn">🏁 エピローグ</button>
+    </div>
     <div class="chapter-list" id="chapterList"></div>
   </section>
 
@@ -3659,11 +3683,10 @@ let cardLB = {};       // { cardId: limit-break count }, default 0
 let playerRank = 1;
 let playerExp = 0;
 let endlessBest = 0;   // deepest endless-tower floor ever cleared
-let storyMaxCleared = 0; // highest story chapter cleared FOR CURRENT_SEASON (linear unlock: chapter N+1 opens after N)
-let storyMaxClearedBySeason = {}; // { seasonId: highestChapterCleared } — storyMaxCleared above is kept in sync with this[CURRENT_SEASON] on load/save
+let storyMaxClearedBySeason = {}; // { seasonId: highestChapterCleared } — both seasons progress independently, always playable side-by-side
 let tutorialDone = false; // fresh players see the guided intro once; skippable
-let seasonPrologueSeen = false; // fresh players see the season's opening narration once
-let seasonPrologueSeenFor = null; // which season id that flag currently applies to (a season switch resets it)
+let seasonPrologueSeenBySeason = {}; // { seasonId: true } — each season's opening narration auto-plays once, independently
+
 let lastLoginDate = null;       // YYYY-MM-DD of the last day a login bonus was claimed
 let loginStreak = 0;            // consecutive-day counter for escalating login rewards
 let playerName = 'プレイヤー';  // shown on the home screen and sent to the online relay server
@@ -3775,8 +3798,7 @@ let skipAutoSave = false; // set true right before a reset-and-reload so the bef
 function saveState(){
   if(skipAutoSave) return;
   try{
-    storyMaxClearedBySeason[CURRENT_SEASON] = storyMaxCleared; // keep the per-season map current before persisting
-    const payload = { playerCoins, coinBalanceCorrectedV1, devCoinsGranted, coinRevertV2Applied, ownedCards, selectedDeck, cardLevels, cardLB, playerRank, playerExp, endlessBest, storyMaxClearedBySeason, tutorialDone, seasonPrologueSeen, seasonPrologueSeenFor, lastLoginDate, loginStreak, playerName, stamina, lastStaminaTime, favoriteCards, bgmVolume, sfxVolume, audioMuted };
+    const payload = { playerCoins, coinBalanceCorrectedV1, devCoinsGranted, coinRevertV2Applied, ownedCards, selectedDeck, cardLevels, cardLB, playerRank, playerExp, endlessBest, storyMaxClearedBySeason, tutorialDone, seasonPrologueSeenBySeason, lastLoginDate, loginStreak, playerName, stamina, lastStaminaTime, favoriteCards, bgmVolume, sfxVolume, audioMuted };
     localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
   }catch(err){
     // localStorage can throw in rare cases (private browsing quota, etc).
@@ -3905,17 +3927,21 @@ function loadState(){
     // it there rather than accidentally crediting it to whatever season ships next.
     storyMaxClearedBySeason.godschallenge = Math.floor(saved.storyMaxCleared);
   }
-  storyMaxCleared = storyMaxClearedBySeason[CURRENT_SEASON] || 0;
   // players with a pre-tutorial save are already playing — never show them the intro
   tutorialDone = (typeof saved.tutorialDone === 'boolean') ? saved.tutorialDone : true;
-  // existing players (loading any pre-existing save) shouldn't see the prologue out of nowhere
-  if(typeof saved.seasonPrologueSeenFor === 'string') seasonPrologueSeenFor = saved.seasonPrologueSeenFor;
-  // a season switch (or a legacy save from before this field existed) means the
-  // flag doesn't apply to CURRENT_SEASON — treat it as unseen so the new season's
-  // prologue actually plays once, instead of silently inheriting the old season's flag.
-  seasonPrologueSeen = (seasonPrologueSeenFor === CURRENT_SEASON && typeof saved.seasonPrologueSeen === 'boolean')
-    ? saved.seasonPrologueSeen
-    : false;
+  if(saved.seasonPrologueSeenBySeason && typeof saved.seasonPrologueSeenBySeason==='object'){
+    // current-format save: a map of { seasonId: true }
+    Object.keys(saved.seasonPrologueSeenBySeason).forEach(sid=>{
+      if(saved.seasonPrologueSeenBySeason[sid]===true) seasonPrologueSeenBySeason[sid] = true;
+    });
+  } else if(typeof saved.seasonPrologueSeenFor === 'string' && saved.seasonPrologueSeen===true){
+    // legacy single-flag format from before both seasons were viewable at once
+    seasonPrologueSeenBySeason[saved.seasonPrologueSeenFor] = true;
+  } else if(typeof saved.seasonPrologueSeen === 'boolean' && saved.seasonPrologueSeenFor === undefined){
+    // even older save, from before per-season tracking existed at all — that flag
+    // could only ever have meant "seen godschallenge" since it was the only season.
+    if(saved.seasonPrologueSeen) seasonPrologueSeenBySeason.godschallenge = true;
+  }
   if(typeof saved.lastLoginDate === 'string') lastLoginDate = saved.lastLoginDate;
   if(typeof saved.loginStreak === 'number' && isFinite(saved.loginStreak) && saved.loginStreak>=0) loginStreak = Math.floor(saved.loginStreak);
   if(typeof saved.bgmVolume === 'number' && isFinite(saved.bgmVolume)) bgmVolume = Math.min(1, Math.max(0, saved.bgmVolume));
@@ -4094,10 +4120,13 @@ function renderProfileScreen(){
     const pct = need > 0 ? Math.min(100, Math.round(playerExp / need * 100)) : 100;
     fillEl.style.width = pct + '%';
   }
-  const totalChapters = currentSeasonChapters().length;
+  // sum progress across every playable season, so the profile reflects total
+  // story completion rather than just whichever season happens to be newest
+  const totalChaptersAllSeasons = SEASON_ORDER.reduce((sum,sid)=> sum + (SEASON_STORIES[sid] ? SEASON_STORIES[sid].length : 0), 0);
+  const clearedAllSeasons = SEASON_ORDER.reduce((sum,sid)=> sum + Math.min(storyMaxClearedBySeason[sid] || 0, SEASON_STORIES[sid] ? SEASON_STORIES[sid].length : 0), 0);
   const stats = [
     { val:`${ownedCards.length}/${CARD_POOL.length}`, label:'図鑑コンプリート' },
-    { val:`${storyMaxCleared}/${totalChapters}章`, label:'ストーリー最高クリア' },
+    { val:`${clearedAllSeasons}/${totalChaptersAllSeasons}章`, label:'ストーリー最高クリア' },
     { val:`${endlessBest}階`, label:'エンドレス最高記録' },
     { val:`${loginStreak}日`, label:'連続ログイン' },
   ];
@@ -4109,7 +4138,7 @@ function renderProfileScreen(){
   }
   const achievements = [
     { done: ownedCards.length >= CARD_POOL.length, text:'図鑑コンプリート（全カード所持）', ic:'📚' },
-    { done: storyMaxCleared >= totalChapters, text:'ストーリー全章クリア', ic:'📖' },
+    { done: clearedAllSeasons >= totalChaptersAllSeasons, text:'ストーリー全章クリア', ic:'📖' },
     { done: loginStreak >= 7, text:'7日連続ログイン', ic:'🔥' },
     { done: playerRank >= 10, text:'ランク10到達', ic:'⭐' },
     { done: endlessBest >= 10, text:'エンドレスタワー10階到達', ic:'🗼' },
@@ -5203,7 +5232,10 @@ const SEASONS = {
     colors: { light:'#D9C4F0', mid:'#5B2C82', deep:'#1C0E2E' }, // shadowfall pack's signature purple, distinct from the gold godschallenge banner
   },
 };
-const CURRENT_SEASON = 'shadowfall';
+const CURRENT_SEASON = 'shadowfall'; // the newest season — used as the default tab when Story mode is first opened
+// every season that has its own SEASON_STORIES entry, in the order its tab appears in Story mode.
+// both are always playable side-by-side now — CURRENT_SEASON only decides which tab opens by default.
+const SEASON_ORDER = ['godschallenge', 'shadowfall'];
 
 // --- card definitions ---
 const CARDS = {
@@ -7957,8 +7989,10 @@ const SEASON_STORIES = {
   ],
 };
 
-function currentSeasonChapters(){ return SEASON_STORIES[CURRENT_SEASON] || SEASON_STORIES.godschallenge; }
-function currentSeasonStoryName(){ const s = CURRENT_SEASON ? SEASONS[CURRENT_SEASON] : null; return s ? s.name : ''; }
+let activeStorySeason = CURRENT_SEASON; // which season's tab is currently showing in the Story screen (switchable — both seasons are always playable)
+function currentSeasonChapters(){ return SEASON_STORIES[activeStorySeason] || SEASON_STORIES.godschallenge; }
+function currentSeasonStoryName(){ const s = activeStorySeason ? SEASONS[activeStorySeason] : null; return s ? s.name : ''; }
+function curStoryMaxCleared(){ return storyMaxClearedBySeason[activeStorySeason] || 0; }
 function isSeasonFinaleChapter(num){
   const chapters = currentSeasonChapters();
   return num === chapters[chapters.length-1].num;
@@ -8027,11 +8061,13 @@ function storyChapterMult(num){
 function updateStoryProgressLabel(){
   const el = document.getElementById('storyProgressLabel');
   if(!el) return;
-  el.textContent = storyMaxCleared >= 10
-    ? '全10章クリア済み！強敵たちを制した'
-    : storyMaxCleared > 0
-      ? `第${storyMaxCleared}章まで踏破 ・ 全10章`
-      : '全10章 ・ 強敵たちが待つ';
+  const cleared = storyMaxClearedBySeason[CURRENT_SEASON] || 0; // home tile always reflects the newest season's progress
+  const total = (SEASON_STORIES[CURRENT_SEASON] || SEASON_STORIES.godschallenge).length;
+  el.textContent = cleared >= total
+    ? `全${total}章クリア済み！強敵たちを制した`
+    : cleared > 0
+      ? `第${cleared}章まで踏破 ・ 全${total}章`
+      : `全${total}章 ・ 強敵たちが待つ`;
 }
 
 // ============================================================
@@ -8076,20 +8112,52 @@ let currentStoryChapter = null; // set when the intro modal's "たたかう" is 
 let lastStoryWon = false; // drives the result screen's "次へ" vs "もう一度" button
 
 function openStoryMode(){
+  activeStorySeason = CURRENT_SEASON; // always default to the newest season's tab on entry
+  renderSeasonTabs();
+  refreshStoryScreenForActiveSeason();
+  go('storyChapters');
+}
+
+// tabs let the player freely switch between every season's story — both are
+// always playable side-by-side now, this just decides which one is showing.
+function renderSeasonTabs(){
+  const tabs = document.getElementById('seasonTabs');
+  if(!tabs) return;
+  tabs.innerHTML = '';
+  SEASON_ORDER.forEach(sid=>{
+    if(!SEASON_STORIES[sid]) return;
+    const season = SEASONS[sid];
+    const btn = document.createElement('div');
+    btn.className = 'season-tab' + (sid === activeStorySeason ? ' active' : '');
+    btn.textContent = season ? season.name : sid;
+    btn.addEventListener('click', ()=> switchStorySeason(sid));
+    tabs.appendChild(btn);
+  });
+}
+
+function switchStorySeason(sid){
+  if(sid === activeStorySeason) return;
+  activeStorySeason = sid;
+  playSE('uiTap');
+  renderSeasonTabs();
+  refreshStoryScreenForActiveSeason();
+}
+
+function refreshStoryScreenForActiveSeason(){
   const sub = document.getElementById('storySeasonSub');
   const seasonName = currentSeasonStoryName();
   if(sub) sub.textContent = seasonName ? `シーズン「${seasonName}」の物語` : '強敵たちを倒して物語を進めよう';
   buildStoryChapterList();
-  go('storyChapters');
-  if(!seasonPrologueSeen) openSeasonPrologue();
+  if(!seasonPrologueSeenBySeason[activeStorySeason]) openSeasonPrologue();
 }
 
 function buildStoryChapterList(){
   const list = document.getElementById('chapterList');
   list.innerHTML = '';
+  const cleared0 = curStoryMaxCleared();
   currentSeasonChapters().forEach(ch=>{
-    const unlocked = ch.num <= storyMaxCleared + 1;
-    const cleared = ch.num <= storyMaxCleared;
+    const unlocked = ch.num <= cleared0 + 1;
+    const cleared = ch.num <= cleared0;
     const boss = CARDS[ch.bossId];
     const reward = storyChapterReward(ch.num);
     const row = document.createElement('div');
@@ -8112,6 +8180,9 @@ function buildStoryChapterList(){
   });
 }
 
+document.getElementById('replayPrologueBtn').addEventListener('click', ()=> openSeasonPrologue());
+document.getElementById('replayEndingBtn').addEventListener('click', ()=> openSeasonEnding(true));
+
 let siDialogueLines = [];
 let siDialogueIndex = 0;
 
@@ -8130,44 +8201,52 @@ function openChapterIntro(num){
   startBtn.dataset.chapter = num;
   delete startBtn.dataset.prologue;
   delete startBtn.dataset.ending;
+  delete startBtn.dataset.endingReplay;
   siDialogueLines = ch.dialogue;
   siDialogueIndex = 0;
   renderSiDialogue();
   document.getElementById('storyIntroModal').classList.add('open');
 }
 
-// prologue: shown once, before the player has ever seen the chapter list
+// prologue: auto-plays once per season (must be read through the first time);
+// the "📜 プロローグ" button can also replay it anytime after that (freely closable then).
 function openSeasonPrologue(){
-  const p = SEASON_PROLOGUE[CURRENT_SEASON];
-  if(!p){ seasonPrologueSeen = true; seasonPrologueSeenFor = CURRENT_SEASON; saveState(); return; }
+  const p = SEASON_PROLOGUE[activeStorySeason];
+  if(!p){ seasonPrologueSeenBySeason[activeStorySeason] = true; saveState(); return; }
+  const alreadySeen = !!seasonPrologueSeenBySeason[activeStorySeason];
   const portrait = document.getElementById('siPortrait');
   const startBtn = document.getElementById('siStartBtn');
   portrait.style.display = 'none'; // no single character narrates the prologue
   document.getElementById('siChapNum').textContent = 'シーズンイベント';
   document.getElementById('siTitle').textContent = p.title;
-  document.getElementById('siCloseBtn').classList.add('hidden'); // read it through, no skip-via-X
-  startBtn.textContent = '冒険を始める';
+  document.getElementById('siCloseBtn').classList.toggle('hidden', !alreadySeen); // first viewing: read it through; replay: closable anytime
+  startBtn.textContent = alreadySeen ? '閉じる' : '冒険を始める';
   startBtn.dataset.prologue = '1';
   delete startBtn.dataset.chapter;
   delete startBtn.dataset.ending;
+  delete startBtn.dataset.endingReplay;
   siDialogueLines = p.lines;
   siDialogueIndex = 0;
   renderSiDialogue();
   document.getElementById('storyIntroModal').classList.add('open');
 }
 
-// ending: shown once, right after the season's final chapter is first cleared
-function openSeasonEnding(){
-  const e = SEASON_ENDING[CURRENT_SEASON];
-  if(!e) return;
+// ending: auto-plays once, right after the season's final chapter is first cleared
+// (and then returns home, since that's part of the clear-reward flow); the
+// "🏁 エピローグ" button can also replay it anytime — including before the season
+// is cleared — and just closes the modal instead of forcing a trip home.
+function openSeasonEnding(isReplay){
+  const e = SEASON_ENDING[activeStorySeason];
+  if(!e){ if(isReplay) toastMessage('このシーズンのエピローグはまだありません'); return; }
   const portrait = document.getElementById('siPortrait');
   const startBtn = document.getElementById('siStartBtn');
   portrait.style.display = 'none';
   document.getElementById('siChapNum').textContent = 'ENDING';
   document.getElementById('siTitle').textContent = e.title;
-  document.getElementById('siCloseBtn').classList.add('hidden');
-  startBtn.textContent = 'ホームへ戻る';
-  startBtn.dataset.ending = '1';
+  document.getElementById('siCloseBtn').classList.toggle('hidden', !isReplay);
+  startBtn.textContent = isReplay ? '閉じる' : 'ホームへ戻る';
+  startBtn.dataset.ending = isReplay ? '' : '1';
+  startBtn.dataset.endingReplay = isReplay ? '1' : '';
   delete startBtn.dataset.chapter;
   delete startBtn.dataset.prologue;
   siDialogueLines = e.lines;
@@ -8196,11 +8275,14 @@ document.getElementById('siCloseBtn').addEventListener('click', ()=>{
 document.getElementById('siStartBtn').addEventListener('click', ()=>{
   const btn = document.getElementById('siStartBtn');
   if(btn.dataset.prologue === '1'){
-    seasonPrologueSeen = true;
-    seasonPrologueSeenFor = CURRENT_SEASON;
+    seasonPrologueSeenBySeason[activeStorySeason] = true;
     saveState();
     document.getElementById('storyIntroModal').classList.remove('open');
     return; // chapter list is already built/shown underneath by openStoryMode
+  }
+  if(btn.dataset.endingReplay === '1'){
+    document.getElementById('storyIntroModal').classList.remove('open');
+    return; // manual replay from the 🏁 button — just close, no trip home
   }
   if(btn.dataset.ending === '1'){
     document.getElementById('storyIntroModal').classList.remove('open');
@@ -8247,9 +8329,9 @@ function endStoryBattle(won){
   const hasNextChapter = won && currentSeasonChapters().some(c=> c.num===ch.num+1);
   playAgainBtn.textContent = hasNextChapter ? '次へ' : 'もう一度';
   if(won){
-    const firstClear = ch.num > storyMaxCleared;
+    const firstClear = ch.num > curStoryMaxCleared();
     if(firstClear){
-      storyMaxCleared = ch.num;
+      storyMaxClearedBySeason[activeStorySeason] = ch.num;
       const reward = storyChapterReward(ch.num);
       playerCoins += reward.coins;
       playSE('coin');
@@ -8259,7 +8341,8 @@ function endStoryBattle(won){
       big.className = 'result-big victory';
       sub.innerHTML = `${ch.title}<br>「${ch.victoryLine.join('　')}」<br>🪙${reward.coins} ・ EXP${reward.exp} 獲得`;
       updateStoryProgressLabel();
-      if(isSeasonFinaleChapter(ch.num)) setTimeout(()=> openSeasonEnding(), 900);
+      saveState();
+      if(isSeasonFinaleChapter(ch.num)) setTimeout(()=> openSeasonEnding(false), 900);
     } else {
       gainExp(5);
       big.textContent = `第${ch.num}章 突破！`;
