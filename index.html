@@ -3659,9 +3659,11 @@ let cardLB = {};       // { cardId: limit-break count }, default 0
 let playerRank = 1;
 let playerExp = 0;
 let endlessBest = 0;   // deepest endless-tower floor ever cleared
-let storyMaxCleared = 0; // highest story chapter cleared (linear unlock: chapter N+1 opens after N)
+let storyMaxCleared = 0; // highest story chapter cleared FOR CURRENT_SEASON (linear unlock: chapter N+1 opens after N)
+let storyMaxClearedBySeason = {}; // { seasonId: highestChapterCleared } — storyMaxCleared above is kept in sync with this[CURRENT_SEASON] on load/save
 let tutorialDone = false; // fresh players see the guided intro once; skippable
 let seasonPrologueSeen = false; // fresh players see the season's opening narration once
+let seasonPrologueSeenFor = null; // which season id that flag currently applies to (a season switch resets it)
 let lastLoginDate = null;       // YYYY-MM-DD of the last day a login bonus was claimed
 let loginStreak = 0;            // consecutive-day counter for escalating login rewards
 let playerName = 'プレイヤー';  // shown on the home screen and sent to the online relay server
@@ -3773,7 +3775,8 @@ let skipAutoSave = false; // set true right before a reset-and-reload so the bef
 function saveState(){
   if(skipAutoSave) return;
   try{
-    const payload = { playerCoins, coinBalanceCorrectedV1, devCoinsGranted, coinRevertV2Applied, ownedCards, selectedDeck, cardLevels, cardLB, playerRank, playerExp, endlessBest, storyMaxCleared, tutorialDone, seasonPrologueSeen, lastLoginDate, loginStreak, playerName, stamina, lastStaminaTime, favoriteCards, bgmVolume, sfxVolume, audioMuted };
+    storyMaxClearedBySeason[CURRENT_SEASON] = storyMaxCleared; // keep the per-season map current before persisting
+    const payload = { playerCoins, coinBalanceCorrectedV1, devCoinsGranted, coinRevertV2Applied, ownedCards, selectedDeck, cardLevels, cardLB, playerRank, playerExp, endlessBest, storyMaxClearedBySeason, tutorialDone, seasonPrologueSeen, seasonPrologueSeenFor, lastLoginDate, loginStreak, playerName, stamina, lastStaminaTime, favoriteCards, bgmVolume, sfxVolume, audioMuted };
     localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
   }catch(err){
     // localStorage can throw in rare cases (private browsing quota, etc).
@@ -3890,11 +3893,29 @@ function loadState(){
   if(typeof saved.playerRank==='number' && isFinite(saved.playerRank) && saved.playerRank>=1) playerRank = Math.floor(saved.playerRank);
   if(typeof saved.playerExp==='number' && isFinite(saved.playerExp) && saved.playerExp>=0) playerExp = Math.floor(saved.playerExp);
   if(typeof saved.endlessBest==='number' && isFinite(saved.endlessBest) && saved.endlessBest>=0) endlessBest = Math.floor(saved.endlessBest);
-  if(typeof saved.storyMaxCleared==='number' && isFinite(saved.storyMaxCleared) && saved.storyMaxCleared>=0) storyMaxCleared = Math.floor(saved.storyMaxCleared);
+  if(saved.storyMaxClearedBySeason && typeof saved.storyMaxClearedBySeason==='object'){
+    // current-format save: a map of { seasonId: highestChapterCleared }
+    Object.keys(saved.storyMaxClearedBySeason).forEach(sid=>{
+      const v = saved.storyMaxClearedBySeason[sid];
+      if(typeof v==='number' && isFinite(v) && v>=0) storyMaxClearedBySeason[sid] = Math.floor(v);
+    });
+  } else if(typeof saved.storyMaxCleared==='number' && isFinite(saved.storyMaxCleared) && saved.storyMaxCleared>=0){
+    // legacy save from before multi-season tracking existed — that progress was
+    // always earned in the (only season back then) godschallenge story, so migrate
+    // it there rather than accidentally crediting it to whatever season ships next.
+    storyMaxClearedBySeason.godschallenge = Math.floor(saved.storyMaxCleared);
+  }
+  storyMaxCleared = storyMaxClearedBySeason[CURRENT_SEASON] || 0;
   // players with a pre-tutorial save are already playing — never show them the intro
   tutorialDone = (typeof saved.tutorialDone === 'boolean') ? saved.tutorialDone : true;
   // existing players (loading any pre-existing save) shouldn't see the prologue out of nowhere
-  seasonPrologueSeen = (typeof saved.seasonPrologueSeen === 'boolean') ? saved.seasonPrologueSeen : true;
+  if(typeof saved.seasonPrologueSeenFor === 'string') seasonPrologueSeenFor = saved.seasonPrologueSeenFor;
+  // a season switch (or a legacy save from before this field existed) means the
+  // flag doesn't apply to CURRENT_SEASON — treat it as unseen so the new season's
+  // prologue actually plays once, instead of silently inheriting the old season's flag.
+  seasonPrologueSeen = (seasonPrologueSeenFor === CURRENT_SEASON && typeof saved.seasonPrologueSeen === 'boolean')
+    ? saved.seasonPrologueSeen
+    : false;
   if(typeof saved.lastLoginDate === 'string') lastLoginDate = saved.lastLoginDate;
   if(typeof saved.loginStreak === 'number' && isFinite(saved.loginStreak) && saved.loginStreak>=0) loginStreak = Math.floor(saved.loginStreak);
   if(typeof saved.bgmVolume === 'number' && isFinite(saved.bgmVolume)) bgmVolume = Math.min(1, Math.max(0, saved.bgmVolume));
@@ -5174,8 +5195,15 @@ const SEASONS = {
     bannerCopy: '神への挑戦 開催中！',
     colors: { light:'#F0DCA0', mid:'#A8842E', deep:'#241C0A' }, // divine gold/bronze, distinct from the default purple gacha banner
   },
+  shadowfall: {
+    id: 'shadowfall',
+    name: '常闇の侵蝕',
+    subtitle: '光もまた、堕ちうる。',
+    bannerCopy: '常闇の侵蝕 開催中！',
+    colors: { light:'#D9C4F0', mid:'#5B2C82', deep:'#1C0E2E' }, // shadowfall pack's signature purple, distinct from the gold godschallenge banner
+  },
 };
-const CURRENT_SEASON = 'godschallenge';
+const CURRENT_SEASON = 'shadowfall';
 
 // --- card definitions ---
 const CARDS = {
@@ -7845,6 +7873,88 @@ const SEASON_STORIES = {
     ],
     victoryLine:['……見事。この戦い、永く語り継がれるだろう。','新たな時代の扉が、今開かれた。……お前が、その主人公だ。'] },
   ],
+  // ============ 「常闇の侵蝕」シーズンストーリー 全10章 ============
+  // 登場するのは常闇の侵蝕パックのキャラクターのみ(bossId/grunts共)。
+  // 物語の軸: エレボス撃破後、世界に広がり始めた紫の侵蝕を辿ると、
+  // その根源である常闇神ニュクスに行き着く。そして彼女こそが、
+  // かつての光の使者エレボスを堕天させた張本人だった、という縦のつながり。
+  shadowfall: [
+  { num:1, bossId:'kuro_slime', grunts:['murasaki_slime','yoru_slime'], title:'滲み出す紫',
+    dialogue:[
+      'アイテールを退けたあの日から、世界は静かに変わり始めていた。',
+      '光の届く場所に、紫の染みが浮かぶようになったのだ。',
+      '……お前も気づいたか。この滲み、生き物のように蠢いている。'
+    ],
+    victoryLine:['紫は薄れたが、消えたわけじゃない……根はもっと深い。','この侵蝕、辿ればきっと何かに行き着く。'] },
+  { num:2, bossId:'susu', grunts:['shimo','yamibiri'], title:'灰と紫に染まる獣たち',
+    dialogue:[
+      'クロを退けた話は、もう森中に広まっているぜ。',
+      '俺たちも紫に炙られてから、体が疼いて仕方がねえ。',
+      '止めてくれるってんなら、遠慮なく歯を立てさせてもらう！'
+    ],
+    victoryLine:['……熱が引いていく。ようやく元通りに戻れそうだ。','だが紫の炎は消えちゃいねえ。もっと奥に、火元がある。'] },
+  { num:3, bossId:'kageha_moth', grunts:['kareha_vine','dorone'], title:'光を喰う蝶',
+    dialogue:[
+      '私はまだ、光を覚えている。だから抗える……今のところは。',
+      'だが半分は、もう紫に喰われてしまった。',
+      'この体が完全に堕ちる前に――止めてくれ。それとも、私ごと壊すか。'
+    ],
+    victoryLine:['……ありがとう。まだ、光の側にいられそうだ。','この先、光すら覚えていない者たちが待っている。気をつけて。'] },
+  { num:4, bossId:'honegarasu', grunts:['kuromimi','nigori'], title:'骸の声、応える闇',
+    dialogue:[
+      '……お前、生きているのか。羨ましいものだ。',
+      '俺たちはとっくに死んだ。それでも紫が、こうして体を動かしてくれる。',
+      '生きてるってのがどんな感じか、忘れちまったよ。だから――試させろ。'
+    ],
+    victoryLine:['……ようやく、静かになれる。','だがまだ、俺たちを動かしていた「声」の主は健在だ。奥へ行け。'] },
+  { num:5, bossId:'dokuro_shroom', grunts:['sabimushi','onibi'], title:'森を蝕む哄笑',
+    dialogue:[
+      'ケケケ……新しい客だ、新しい客だ！',
+      'この森はもう、笑い声しか残っていない。皆同じ気分にしてやろう。',
+      '紫の胞子を吸えば、お前もすぐに――笑い出すぞ？'
+    ],
+    victoryLine:['……笑い声が、止まった。','森の奥、もっと深いところで「何か」が笑っている気配がする。'] },
+  { num:6, bossId:'shijima', grunts:['shokurou','kageha_oni'], title:'沈黙の梟、群れを率いて',
+    dialogue:[
+      '鳴かずとも、我が声は届く。この群れの誰にでも。',
+      '汝、光の残滓を追う者だな。ならばここで終わりにしよう。',
+      '静寂の中でこそ、真の闇は牙を研ぐ。'
+    ],
+    victoryLine:['……見事。だが、これはまだ前哨に過ぎぬ。','この先には、かつて祈りを捧げていた者たちがいる。彼女らも、もう戻れぬ道の途中だ。'] },
+  { num:7, bossId:'arachne', grunts:['infernal','fuyugara'], title:'紫の巣に囚われた誓い',
+    dialogue:[
+      '……誓いを果たせなかった騎士と、顔を失った僧。哀れなものだろう？',
+      '私の糸に囚われれば、時間の感覚さえ失う。もう抗う気力も残らない。',
+      'お前もこの巣に、いずれ絡め取られる運命だ。'
+    ],
+    victoryLine:['……糸が、切れた。久方ぶりに、時間の流れを感じる。','だが女王の巣は、まだ奥にある。行くというなら、止めはしない。'] },
+  { num:8, bossId:'raika', grunts:['trent','abyss'], title:'雷禍の使者、道を塞ぐ',
+    dialogue:[
+      '一声鳴けば紫の雷が落ちる。それが私の役目だ。',
+      '深淵より遣わされし女王の名代として、汝をここで止めねばならぬ。',
+      '女王……そう、常闇神ニュクス様の御前へは、生半可な覚悟では進ませない。'
+    ],
+    victoryLine:['……女王の名を出しても、怯まぬか。見事だ。','この先はもう、女王の直属の守護者たちの領域。心してゆけ。'] },
+  { num:9, bossId:'cerberus', grunts:['nox_saint','bahamura'], title:'冥府の門番と、堕ちた聖女',
+    dialogue:[
+      '三つの首、三つの罪。汝の罪を、今ここで裁いてやろう。',
+      '……ケルベロス、待って。この者、まだ何も知らないのですよ。',
+      '教えてあげましょう。かつて光の使者だった者が、どうして堕ちたのかを。',
+      '堕天使エレボス……あの方も、女王ニュクス様に見初められ、闇に堕とされたのです。',
+      '光は、闇にとって最高のご馳走。抗えるはずもない。',
+      '御託はそこまでだ。続きは女王の前で聞くがいい！'
+    ],
+    victoryLine:['……エレボス様の顛末、まだ話し足りませんが……ここまでのようですね。','女王は、玉座の間でお待ちです。すべての答えは、そこに。'] },
+  { num:10, bossId:'nyx', grunts:['muramasa','kegare'], title:'常闇神の玉座',
+    dialogue:[
+      'よくぞ辿り着いた、小さき光よ。',
+      'ノクスから聞いたのだろう？ ええ、その通り。堕天使エレボスを闇に堕としたのは、この私だ。',
+      '彼の者が纏っていた光は、それは美しかった。だからこそ、私のものにしたいと思った。',
+      '抗う光ほど、堕ちた時に深い闇を纏う。お前もまた、同じ道を辿るがいい。',
+      'さあ、見せてもらおう――お前の光が、どこまで堕ちずにいられるか。'
+    ],
+    victoryLine:['……これは、まさか。私の夜が、破れるとは。','いいだろう、小さき光よ。今宵だけは、お前の勝ちとしておこう。だが夜は、また巡る。'] },
+  ],
 };
 
 function currentSeasonChapters(){ return SEASON_STORIES[CURRENT_SEASON] || SEASON_STORIES.godschallenge; }
@@ -7865,6 +7975,16 @@ const SEASON_PROLOGUE = {
       '数多の獣、そして名だたる強者たちが、その道を守っているという。',
       '道を征く者よ、汝にその資格ありや。「神への挑戦」、今ここに始まる。'
     ]
+  },
+  shadowfall: {
+    title: '常闇の侵蝕',
+    lines: [
+      'あの日、堕天使エレボスを打ち倒してから――世界は、少しずつ変わり始めていた。',
+      '光の届く場所に、紫の染みが浮かぶ。獣は歯を剥き、森は哄笑する。',
+      'すべての糸を辿った先に待つのは、常闇神ニュクスと呼ばれる者だという。',
+      'なぜエレボスは堕ちたのか。その答えもまた、闇の奥にある。',
+      '侵蝕は、もう始まっている。「常闇の侵蝕」、今ここに幕を開ける。'
+    ]
   }
 };
 
@@ -7878,6 +7998,16 @@ const SEASON_ENDING = {
       'カグライ、アスカロン……道中で出会った者たちの顔が、脳裏をよぎる。',
       'だが、これで終わりではない。新たな伝説は、まだ始まったばかりだ。',
       '――「神への挑戦」、完。'
+    ]
+  },
+  shadowfall: {
+    title: '常闇の侵蝕　～エンディング～',
+    lines: [
+      '常闇神ニュクスは、静かに闇へと溶けていった。',
+      '「エレボスを堕としたのは私だ」――その言葉だけが、確かに残った。',
+      '倒れた者たちの紫は、少しずつ晴れていく。だが完全に消えることはないだろう。',
+      '光もまた、堕ちる可能性を秘めている。それを知った今、歩みを止めるわけにはいかない。',
+      '――「常闇の侵蝕」、完。次なる夜は、まだ見ぬ場所で待っている。'
     ]
   }
 };
@@ -8009,7 +8139,7 @@ function openChapterIntro(num){
 // prologue: shown once, before the player has ever seen the chapter list
 function openSeasonPrologue(){
   const p = SEASON_PROLOGUE[CURRENT_SEASON];
-  if(!p){ seasonPrologueSeen = true; saveState(); return; }
+  if(!p){ seasonPrologueSeen = true; seasonPrologueSeenFor = CURRENT_SEASON; saveState(); return; }
   const portrait = document.getElementById('siPortrait');
   const startBtn = document.getElementById('siStartBtn');
   portrait.style.display = 'none'; // no single character narrates the prologue
@@ -8067,6 +8197,7 @@ document.getElementById('siStartBtn').addEventListener('click', ()=>{
   const btn = document.getElementById('siStartBtn');
   if(btn.dataset.prologue === '1'){
     seasonPrologueSeen = true;
+    seasonPrologueSeenFor = CURRENT_SEASON;
     saveState();
     document.getElementById('storyIntroModal').classList.remove('open');
     return; // chapter list is already built/shown underneath by openStoryMode
