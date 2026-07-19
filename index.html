@@ -3673,10 +3673,11 @@ S.title.addEventListener('click', ()=>{
 
 /* ===== player progression state (coins, owned-card collection) ===== */
 const SAVE_KEY = 'jankenBattlers_save_v1';
-let playerCoins = 1200; // starting balance (enough for one guaranteed 10-pull + a bit)
+let playerCoins = 9999999; // starting balance
 let coinBalanceCorrectedV1 = true; // set false only for existing saves that predate this field (see loadState)
 let devCoinsGranted = false; // true once the ?devcoins=1 one-time grant has run on this save
 let coinRevertV2Applied = true; // set false only for saves that still have the temporary 999999 bump (see loadState)
+let coinGrantAllV1Applied = false; // one-time "everyone gets 9999999" bump — set true after loadState() applies it once
 let ownedCards = { goo:1, paa:1, choki:1 }; // { cardId: countOwned } — starter roster owned from the beginning
 
 /* ===== growth systems: per-card level (coins), limit break (被り消費), player rank — all uncapped ===== */
@@ -3809,7 +3810,7 @@ let skipAutoSave = false; // set true right before a reset-and-reload so the bef
 function saveState(){
   if(skipAutoSave) return;
   try{
-    const payload = { playerCoins, coinBalanceCorrectedV1, devCoinsGranted, coinRevertV2Applied, ownedCards, selectedDeck, cardLevels, cardLB, playerRank, playerExp, endlessBest, storyMaxClearedBySeason, tutorialDone, seasonPrologueSeenBySeason, lastLoginDate, loginStreak, playerName, playerId, stamina, lastStaminaTime, favoriteCards, bgmVolume, sfxVolume, audioMuted };
+    const payload = { playerCoins, coinBalanceCorrectedV1, devCoinsGranted, coinRevertV2Applied, coinGrantAllV1Applied, ownedCards, selectedDeck, cardLevels, cardLB, playerRank, playerExp, endlessBest, storyMaxClearedBySeason, tutorialDone, seasonPrologueSeenBySeason, lastLoginDate, loginStreak, playerName, playerId, stamina, lastStaminaTime, favoriteCards, bgmVolume, sfxVolume, audioMuted };
     localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
   }catch(err){
     // localStorage can throw in rare cases (private browsing quota, etc).
@@ -3884,6 +3885,13 @@ function loadState(){
     playerCoins = 1200;
   }
   coinRevertV2Applied = true;
+  // one-time "みんな9999999枚" bump — every existing save gets pulled up to
+  // 9999999 coins exactly once. Uses max() so it never claws back a balance
+  // someone already had (e.g. via ?devcoins=1), only tops up lower ones.
+  if(!saved.coinGrantAllV1Applied){
+    playerCoins = Math.max(playerCoins, 9999999);
+  }
+  coinGrantAllV1Applied = true;
   if(saved.ownedCards && typeof saved.ownedCards === 'object'){
     // only trust card ids that still actually exist, in case the roster
     // has changed since this save was written
