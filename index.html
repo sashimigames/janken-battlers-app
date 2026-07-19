@@ -6877,10 +6877,27 @@ function canUseUltimate(mon){
 // cards, currently just erebos) — everything else ignores it. Passed in
 // explicitly rather than reached for globally so this function stays a pure
 // "given these two monsters, what happens" calculation.
+// レベル/限界突破でATKが伸びるのと同じ倍率を、必殺技側の固定値(毒ダメージ・
+// 一時ATKデバフ量・ランダムダメージ幅など)にもかける。ステータスはレベルで
+// 伸びるのに必殺技の数値だけ据え置き…だと体感どんどん見劣りしていくため。
+// mon.atk はこの時点で既にレベル反映後の値なので、CARDSの基礎ATKとの比を
+// 取るだけでいい。オンライン対戦相手の申告ステータスにも、難易度ごとに
+// 強くなるレイドボス(opts.mult)にも、追加の情報受け渡し無しでそのまま効く。
+// getUltimateEffect()の実際の計算と、EFFECTモーダルの表示テキスト
+// (ultimateEffectLineText)の両方から使う共通ロジックなので、ここで一本化する。
+function ultGrowthRatio(mon){
+  const baseAtk = (CARDS[mon.id] && CARDS[mon.id].atk) || mon.atk || 1;
+  return mon.atk / baseAtk;
+}
+function ultScale(mon, n){
+  return Math.max(1, Math.round(n * ultGrowthRatio(mon)));
+}
+
 function getUltimateEffect(mon, opponent){
   const sp = mon.special;
   const fallback = { damage: Math.round(mon.atk*ULT_MULT*DAMAGE_PACE), heal:0, debuff:0, moveName:`${mon.name}・渾身の一撃`, type:'ultimate' };
   if(!sp) return fallback;
+  const scale = (n)=> ultScale(mon, n);
 
   // dedicated ultimate-only mechanic (bypasses the "amplified passive" pattern
   // below entirely) — checked first since it's an explicit design choice for
@@ -6892,29 +6909,30 @@ function getUltimateEffect(mon, opponent){
   }
   if(sp.ultimateRandomDamage){
     const a = sp.ultimateRandomDamage;
-    const dmg = a.min + Math.floor(Math.random() * (a.max - a.min + 1));
+    const min = scale(a.min), max = scale(a.max);
+    const dmg = min + Math.floor(Math.random() * (max - min + 1));
     return { damage: dmg, heal:0, debuff:0, moveName:a.moveName, type:'ultimate' };
   }
   // 侵食: 即時の軽いダメージ + 数ターンにわたって毎ターンダメージが入り続ける状態異常
   if(sp.ultimatePoison){
     const a = sp.ultimatePoison;
-    return { damage:a.damage||0, heal:0, debuff:0,
-             poison:{ dmg:a.damagePerTurn, turns:a.turns },
+    return { damage:scale(a.damage||0), heal:0, debuff:0,
+             poison:{ dmg:scale(a.damagePerTurn), turns:a.turns },
              moveName:a.moveName, type:'ultimate' };
   }
   // 一時ATKデバフ: 即時の軽いダメージ + 数ターンの間だけ相手のATKが下がる(永続ではなく時限)
   if(sp.ultimateTempAtkDebuff){
     const a = sp.ultimateTempAtkDebuff;
-    return { damage:a.damage||0, heal:0, debuff:0,
-             tempAtkDebuff:{ amount:a.amount, turns:a.turns },
+    return { damage:scale(a.damage||0), heal:0, debuff:0,
+             tempAtkDebuff:{ amount:scale(a.amount), turns:a.turns },
              moveName:a.moveName, type:'ultimate' };
   }
   // 複合技(LSR等の特別な必殺技用): 侵食+一時ATKデバフを同時に付与
   if(sp.ultimateCorruptionCombo){
     const a = sp.ultimateCorruptionCombo;
-    return { damage:a.damage||0, heal:0, debuff:0,
-             poison:{ dmg:a.poisonDmg, turns:a.poisonTurns },
-             tempAtkDebuff:{ amount:a.atkDebuffAmount, turns:a.atkDebuffTurns },
+    return { damage:scale(a.damage||0), heal:0, debuff:0,
+             poison:{ dmg:scale(a.poisonDmg), turns:a.poisonTurns },
+             tempAtkDebuff:{ amount:scale(a.atkDebuffAmount), turns:a.atkDebuffTurns },
              moveName:a.moveName, type:'ultimate' };
   }
   if(sp.selfHealOnFavoredWin){
@@ -7523,6 +7541,32 @@ function endOnlineBattle(won){
 // ============================================================
 //  EFFECT DETAIL MODAL
 // ============================================================
+// カード定義のeffects[]配列は、必殺技の行(常に配列の最後の1行)も含めて
+// 基礎値のまま書かれた静的テキスト。ultScale()で必殺技の実数値をレベル
+// スケールさせるようにしたので、表示側もズレないようここで最後の行だけ
+// 現在のレベル/限界突破を反映した数値に組み立て直す。他の行(パー勝利時
+// 効果など)は変更なし。
+function ultimateEffectLineText(mon){
+  const sp = mon.special;
+  if(!sp) return null;
+  if(sp.ultimatePoison){
+    const a = sp.ultimatePoison;
+    return `<span class="killshot">必殺技「${a.moveName}」</span>：即座に<b>${ultScale(mon,a.damage||0)}ダメージ</b>＋<b>侵食</b>付与(毎ターン${ultScale(mon,a.damagePerTurn)}×${a.turns})。`;
+  }
+  if(sp.ultimateTempAtkDebuff){
+    const a = sp.ultimateTempAtkDebuff;
+    return `<span class="killshot">必殺技「${a.moveName}」</span>：即座に<b>${ultScale(mon,a.damage||0)}ダメージ</b>＋相手の<b>ATK-${ultScale(mon,a.amount)}</b>(${a.turns}ターン)。`;
+  }
+  if(sp.ultimateRandomDamage){
+    const a = sp.ultimateRandomDamage;
+    return `<span class="killshot">必殺技「${a.moveName}」</span>：<b>${ultScale(mon,a.min)}〜${ultScale(mon,a.max)}のランダムダメージ</b>。`;
+  }
+  if(sp.ultimateCorruptionCombo){
+    const a = sp.ultimateCorruptionCombo;
+    return `<span class="killshot">必殺技「${a.moveName}」</span>：即座に<b>${ultScale(mon,a.damage||0)}ダメージ</b>＋<b>侵食</b>(毎ターン${ultScale(mon,a.poisonDmg)}×${a.poisonTurns})＋相手の<b>ATK-${ultScale(mon,a.atkDebuffAmount)}</b>(${a.atkDebuffTurns}ターン)。`;
+  }
+  return null; // 他のspecialタイプは元のテキストのままでOK(固定値スケーリングの対象外)
+}
 function openEffectModal(who){
   if(!G) return;
   const mon = G[who].active;
@@ -7538,8 +7582,10 @@ function openEffectModal(who){
     `<span class="pill">HP ${mon.curHp}/${mon.maxHp}</span>`+
     `<span class="pill">ATK ${mon.atk}</span>`;
   const efx = document.getElementById('modalEffects');
+  const dynamicUltLine = ultimateEffectLineText(mon);
+  const lines = mon.effects.map((e,i)=> (dynamicUltLine && i===mon.effects.length-1) ? dynamicUltLine : e);
   efx.innerHTML = '<div class="efx-head">EFFECT</div>' +
-    mon.effects.map(e=>`<p>${e}</p>`).join('');
+    lines.map(e=>`<p>${e}</p>`).join('');
   overlay.classList.add('open');
 }
 function closeEffectModal(){
